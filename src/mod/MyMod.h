@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ll/api/mod/NativeMod.h"
+#include "mod/Config.h"
 
 namespace my_mod {
 
@@ -22,12 +23,11 @@ public:
     /// @return True if the mod is disabled successfully.
     bool disable();
 
-    // TODO: Implement this method if you need to unload the mod.
-    // /// @return True if the mod is unloaded successfully.
-    // bool unload();
+    bool unload();
 
 private:
-    ll::mod::NativeMod& mSelf;
+    ll::mod::NativeMod&     mSelf;
+    animated_mojang::Config mConfig;
 };
 
 } // namespace my_mod

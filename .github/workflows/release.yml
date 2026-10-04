@@ -1,94 +1,61 @@
+name: Package client release
 on:
   release:
-    types:
-      - published
-  
+    types: [published]
+
 jobs:
-  build:
+  package:
+    permissions:
+      contents: write
     runs-on: windows-latest
-    strategy:
-      matrix:
-        target_type:
-          - server
-          - client
     steps:
       - uses: actions/checkout@v7
-
+      - name: Verify release version
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          $tooth = Get-Content tooth.json -Raw | ConvertFrom-Json
+          if ($env:RELEASE_TAG -ne "v$($tooth.version)") { throw 'Release tag must match tooth.json version.' }
+      - id: notes
+        uses: ffurrer2/extract-release-notes@v3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
       - uses: xmake-io/github-action-setup-xmake@v1
-        # with:
-        #   xmake-version: branch@master
-
       - uses: actions/cache@v6
         with:
-          path: |
-            ~/AppData/Local/.xmake
-          key: xmake-${{ hashFiles('xmake.lua') }}
+          path: ~/AppData/Local/.xmake
+          key: xmake-client-${{ hashFiles('xmake.lua') }}
           restore-keys: |
-            xmake-
-
-      - name: Setup LLVM
-        uses: ZhongRuoyu/setup-llvm@v0
+            xmake-client-
+      - uses: ZhongRuoyu/setup-llvm@v0
         with:
           llvm-version: 22
-
-      - run: |
-          xmake repo -u
-
-      - run: |
-          xmake f -a x64 -m release -p windows --target_type=${{ matrix.target_type }} -y
-
-      - run: |
-          xmake -w -y
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ${{ github.event.repository.name }}-${{ github.sha }}-${{ matrix.target_type }}-windows-x64
-          path: |
-            bin/
-
-  update-release-notes:
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - id: extract-release-notes
-        uses: ffurrer2/extract-release-notes@v3
-
+      - name: Verify assets and generated scene
+        run: |
+          node tools/fetch-assets.mjs --verify-only
+          node tools/build-cave-atlas.mjs --verify-only
+          node tools/build-cave.mjs --verify-only
+          node tools/build-cave-particles.mjs --verify-only
+          node tests/cave_builder_tests.mjs
+      - name: Build and test client
+        run: |
+          xmake f -a x64 -m release -p windows --target_type=client -y
+          xmake -y AnimatedMojang TimelineTests CpuSceneTests CaveSceneTests CaveParticleTests CaveOcclusionTests CaveCameraTests
+          xmake run TimelineTests
+          xmake run CpuSceneTests
+          xmake run CaveSceneTests
+          xmake run CaveParticleTests
+          xmake run CaveOcclusionTests
+          xmake run CaveCameraTests
+          node tests/cave_camera_path_tests.mjs
+      - name: Package runtime files
+        shell: pwsh
+        run: ./tools/package-release.ps1
       - uses: softprops/action-gh-release@v3
         with:
-          body: |
-            ${{ steps.extract-release-notes.outputs.release_notes }}
-
-  upload-to-release:
-    needs:
-      - build
-      - update-release-notes
-    permissions:
-      contents: write
-    strategy:
-      matrix:
-        target_type:
-          - server
-          - client
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: ${{ github.event.repository.name }}-${{ github.sha }}-${{ matrix.target_type }}-windows-x64
-          path: artifact
-
-      - run: |
-          cp CHANGELOG.md LICENSE README.md artifact/
-
-      - run: |
-          zip -r ../${{ github.event.repository.name }}-${{ matrix.target_type }}-windows-x64.zip *
-        working-directory: artifact
-
-      - uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            ${{ github.event.repository.name }}-${{ matrix.target_type }}-windows-x64.zip
+          body: ${{ steps.notes.outputs.release_notes }}
+          files: bin/Animated-Mojang-client-windows-x64.zip
+          fail_on_unmatched_files: true
+          overwrite_files: false

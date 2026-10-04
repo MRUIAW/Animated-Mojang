@@ -1,6 +1,11 @@
 #include "mod/MyMod.h"
 
+#include "client/Client.h"
+#include "ll/api/Config.h"
+#include "ll/api/io/FileUtils.h"
 #include "ll/api/mod/RegisterHelper.h"
+#include <algorithm>
+#include <cmath>
 
 namespace my_mod {
 
@@ -10,20 +15,46 @@ MyMod& MyMod::getInstance() {
 }
 
 bool MyMod::load() {
-    getSelf().getLogger().debug("Loading...");
-    // Code for loading the mod goes here.
+    auto path = getSelf().getConfigDir() / "config.json";
+    try {
+        if (std::filesystem::exists(path)) {
+            auto content = ll::file_utils::readFile(path);
+            if (!content || content->empty()) {
+                getSelf().getLogger().error("Could not read config.json; mod was not activated.");
+                return false;
+            }
+        }
+        // LL returns false for a successfully migrated configuration as well.
+        // Persist the new schema, preserving supported user preferences.
+        if (!ll::config::loadConfig(mConfig, path) && !ll::config::saveConfig(mConfig, path)) {
+            getSelf().getLogger().error("Could not migrate config.json; mod was not activated.");
+            return false;
+        }
+    } catch (std::exception const& error) {
+        getSelf().getLogger().error("Invalid config.json: {}", error.what());
+        return false;
+    }
+    if (!std::isfinite(mConfig.maxPresentationSeconds)) mConfig.maxPresentationSeconds = 15;
+    mConfig.maxPresentationSeconds = std::clamp(mConfig.maxPresentationSeconds, 5.0, 60.0);
+    animated_mojang::client::start(mConfig, getSelf().getModDir());
+    if (mConfig.enabled && mConfig.caveBackground)
+        animated_mojang::client::prepareCave(getSelf().getModDir());
+    getSelf().getLogger().info("Animated Mojang 1.0.0-mc26.51 loaded for Bedrock 26.51 / LL 26.51.6 (client).");
     return true;
 }
 
 bool MyMod::enable() {
-    getSelf().getLogger().debug("Enabling...");
-    // Code for enabling the mod goes here.
+    animated_mojang::client::start(mConfig, getSelf().getModDir());
     return true;
 }
 
 bool MyMod::disable() {
-    getSelf().getLogger().debug("Disabling...");
-    // Code for disabling the mod goes here.
+    animated_mojang::client::stop();
+    return true;
+}
+
+bool MyMod::unload() {
+    animated_mojang::client::stop();
     return true;
 }
 

@@ -1,47 +1,49 @@
+name: Build client
 on:
   pull_request:
   push:
   workflow_dispatch:
-  
+
 jobs:
   build:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        target_type:
-          - server
-          - client
     steps:
       - uses: actions/checkout@v7
-
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
       - uses: xmake-io/github-action-setup-xmake@v1
-        # with:
-        #   xmake-version: branch@master
-      
       - uses: actions/cache@v6
         with:
-          path: |
-            ~/AppData/Local/.xmake
-          key: xmake-${{ hashFiles('xmake.lua') }}
+          path: ~/AppData/Local/.xmake
+          key: xmake-client-${{ hashFiles('xmake.lua') }}
           restore-keys: |
-            xmake-
-
-      - name: Setup LLVM
-        uses: ZhongRuoyu/setup-llvm@v0
+            xmake-client-
+      - uses: ZhongRuoyu/setup-llvm@v0
         with:
           llvm-version: 22
-
-      - run: |
-          xmake repo -u
-
-      - run: |
-          xmake f -a x64 -m release -p windows -v --target_type=${{ matrix.target_type }} -y
-
-      - run: |
-          xmake -v -y
-
+      - name: Verify assets and generated scene
+        run: |
+          node tools/fetch-assets.mjs --verify-only
+          node tools/build-cave-atlas.mjs --verify-only
+          node tools/build-cave.mjs --verify-only
+          node tools/build-cave-particles.mjs --verify-only
+          node tests/cave_builder_tests.mjs
+      - name: Build and test client
+        run: |
+          xmake f -a x64 -m release -p windows --target_type=client -y
+          xmake -y AnimatedMojang TimelineTests CpuSceneTests CaveSceneTests CaveParticleTests CaveOcclusionTests CaveCameraTests
+          xmake run TimelineTests
+          xmake run CpuSceneTests
+          xmake run CaveSceneTests
+          xmake run CaveParticleTests
+          xmake run CaveOcclusionTests
+          xmake run CaveCameraTests
+          node tests/cave_camera_path_tests.mjs
+      - name: Package runtime files
+        shell: pwsh
+        run: ./tools/package-release.ps1
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ github.event.repository.name }}-${{ github.sha }}-${{ matrix.target_type }}-windows-x64
-          path: |
-            bin/
+          name: Animated-Mojang-client-windows-x64
+          path: bin/Animated-Mojang-client-windows-x64.zip

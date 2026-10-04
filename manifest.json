@@ -3,5 +3,7 @@
     "entry": "${modFile}",
     "version": "${modVersion}",
     "type": "native",
-    "platform": "${modPlatform}"
+    "platform": "${modPlatform}",
+    "author": "MRUIAW",
+    "description": "Animated startup presentation and JSON main-menu visuals for Bedrock 26.51"
 }

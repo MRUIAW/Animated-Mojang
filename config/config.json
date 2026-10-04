@@ -1,0 +1,20 @@
+{
+  "version": 4,
+  "enabled": true,
+  "preferJsonMainMenu": true,
+  "minecraftTitleAnimation": true,
+  "caveBackground": true,
+  "restyleLoadingProgress": true,
+  "replayOnReturnToMenu": false,
+  "blockMenuInputDuringIntro": true,
+  "debugScreens": false,
+  "maxPresentationSeconds": 15,
+  "menuScreenNames": [
+    "start_screen"
+  ],
+  "titleControlNames": [
+    "minecraft_title",
+    "title_image",
+    "logo"
+  ]
+}

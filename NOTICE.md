@@ -1,0 +1,11 @@
+# 素材来源
+
+Minecraft 标题动画及洞穴素材来自 [chara2015/animated_mojang](https://github.com/chara2015/animated_mojang)，固定提交 ef68ffb6d6cdbdfab4db960497719416e8b7a6bc。上游仓库采用 CC0 1.0。基岩版客户端启动、渲染与菜单流程由本项目重新实现。
+
+normal_cave.schem 来自同一提交，Git blob SHA-1 为 fa6df51e9120b4af4c9655cf4bd82efa2b6523be。normal_cave.mesh 是从该数据转换的几何与纹理坐标；normal_cave.particles 包含对应发射器与遮挡体素。
+
+洞穴图集的源图片为 cave_blocks.png（ad02c048e7caad5f2b04eacc9764211477eee84d）、cave_lava_flow.png（ce0a46d3593d79e78394cd99e75f022bef966771）和 cave_particles_clean.png（1bd1d1e83715650c95ca3d6facae8db23720a49e）。派生 atlas.png 重排图块并添加亮度余量，保留原图 alpha 和粒子 RGBA。安装包包含派生图集；源图片保留在源码仓库中。
+
+loading_screen-100.png 由项目使用者提供，为基岩版加载界面图片。上述来源说明不改变 Minecraft 原有素材的权利归属。
+
+Minecraft 和 Mojang 名称、标识属于各自权利人。本项目为非官方客户端模组。

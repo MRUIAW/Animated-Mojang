@@ -3,25 +3,22 @@ add_rules("mode.debug", "mode.release")
 add_repositories("levimc-repo https://github.com/LiteLDev/xmake-repo.git")
 
 option("target_type")
-    set_default("server")
+    set_default("client")
     set_showmenu(true)
-    set_values("server", "client")
+    set_values("client")
 option_end()
 
--- add_requires("levilamina x.x.x") for a specific version
--- add_requires("levilamina develop") to use develop version
--- please note that you should add bdslibrary yourself if using dev version
-add_requires("levilamina", {configs = {target_type = get_config("target_type")}})
+add_requires("levilamina 26.51.6", {configs = {target_type = "client"}})
 
-add_requires("levibuildscript")
+add_requires("levibuildscript 0.6.1")
 
 if not has_config("vs_runtime") then
     set_runtimes("MD")
 end
 
-target("my-mod") -- Change this to your mod name.
+target("AnimatedMojang")
     add_rules("@levibuildscript/linkrule")
-    add_rules("@levibuildscript/modpacker")
+    add_rules("@levibuildscript/modpacker", {modName = "AnimatedMojang", modVersion = "1.0.0-mc26.51", modPlatform = "client"})
     if is_plat("windows") then
         add_defines("NOMINMAX", "UNICODE")
         set_exceptions("none") -- To avoid conflicts with /EHa.
@@ -48,10 +45,86 @@ target("my-mod") -- Change this to your mod name.
     add_headerfiles("src/**.h")
     add_files("src/**.cpp")
     add_includedirs("src")
-    if is_config("target_type", "server") then
-    --  add_includedirs("src-server")
-    --  add_files("src-server/**.cpp")
-    else
-    --  add_includedirs("src-client")
-    --  add_files("src-client/**.cpp")
-    end
+    after_build(function(target)
+        local outputdir = path.join(os.projectdir(), "bin", "AnimatedMojang")
+        -- Copy runtime assets only; source assets and development notes stay in the repository.
+        local runtimefiles = {
+            "config/config.json",
+            "resources/data/normal_cave.mesh",
+            "resources/data/normal_cave.particles",
+            "resources/textures/animated_mojang/cave/atlas.png",
+            "resources/textures/animated_mojang/cave/loading_screen-100.png",
+            "NOTICE.md", "LICENSE", "README.md", "README.zh-CN.md", "CHANGELOG.md"
+        }
+        for index = 0, 8 do
+            table.insert(runtimefiles, "resources/textures/animated_mojang/title/minecraft_animation/minecraft_" .. index .. ".png")
+        end
+        for _, file in ipairs(runtimefiles) do
+            local destination = path.join(outputdir, file)
+            os.mkdir(path.directory(destination))
+            os.cp(file, destination)
+        end
+    end)
+target("TimelineTests")
+    set_default(false)
+    set_kind("binary")
+    set_languages("c++20")
+    set_toolchains("clang-cl")
+    add_files("tests/timeline_tests.cpp")
+    add_includedirs("src")
+    add_cxflags("/utf-8", "/EHsc")
+
+
+target("CpuSceneTests")
+    set_default(false)
+    set_kind("binary")
+    set_languages("c++20")
+    set_toolchains("clang-cl")
+    add_packages("levilamina")
+    add_files("tests/cpu_scene_tests.cpp")
+    add_includedirs("src")
+    add_cxflags("/utf-8", "/EHsc")
+
+target("CaveSceneTests")
+    set_default(false)
+    set_kind("binary")
+    set_rundir("$(projectdir)")
+    set_languages("c++20")
+    set_toolchains("clang-cl")
+    add_packages("levilamina")
+    add_files("tests/cave_scene_tests.cpp")
+    add_includedirs("src")
+    add_cxflags("/utf-8", "/EHsc")
+
+target("CaveParticleTests")
+    set_default(false)
+    set_kind("binary")
+    set_languages("c++20")
+    set_toolchains("clang-cl")
+    add_packages("levilamina")
+    add_files("tests/cave_particle_tests.cpp")
+    add_includedirs("src")
+    set_rundir(os.projectdir())
+    add_cxflags("/utf-8", "/EHsc")
+
+target("CaveOcclusionTests")
+    set_default(false)
+    set_kind("binary")
+    set_languages("c++20")
+    set_toolchains("clang-cl")
+    add_packages("levilamina")
+    add_files("tests/cave_occlusion_tests.cpp")
+    add_includedirs("src")
+    set_rundir(os.projectdir())
+    add_cxflags("/utf-8", "/EHsc")
+
+target("CaveCameraTests")
+    set_default(false)
+    set_kind("binary")
+    set_languages("c++20")
+    set_toolchains("clang-cl")
+    add_packages("levilamina")
+    add_files("tests/cave_camera_tests.cpp")
+    add_includedirs("src")
+    set_rundir(os.projectdir())
+    add_cxflags("/utf-8", "/EHsc")
