@@ -20,6 +20,7 @@
 
 - 三维洞穴，包含烘焙彩色光照、动态流动岩浆、墙上灵魂火把，以及火焰和烟雾粒子。
 - 从加载界面图片飞入洞穴，与标题动画及菜单渐显同步；按 **Esc** 跳过。
+- 加载完成后播放原模组的 Mojang Studios 开场：Mojang 标志动画、STUDIOS 渐显和启动音效，同步方式与原模组一致；随后镜头掠过完成的 Mojang 画面飞入洞穴。菜单音乐等待标志播放完，随镜头飞行开始。按 Esc 一并跳过。
 - 主菜单、世界列表、设置、更衣室、Realms 和市场各有相机视角及切换动画。
 - 预读资源、复用场景缓存；渲染卡顿后继续播放，避免直接跳过整个停顿区间。
 - 默认选择游戏内置 JSON 主菜单来实现标题和控件动画；无需额外启用资源包。
@@ -48,7 +49,7 @@ lip install "github.com/MRUIAW/Animated-Mojang#client@1.0.0-mc26.51"
 
 ## 配置
 
-修改 **mods/AnimatedMojang/config/config.json** 后重启游戏。配置格式版本为 **4**，与模组发行版本独立。
+修改 **mods/AnimatedMojang/config/config.json** 后重启游戏。配置格式版本为 **5**，与模组发行版本独立。
 
 | 选项 | 默认值 | 行为 |
 | --- | --- | --- |
@@ -59,10 +60,21 @@ lip install "github.com/MRUIAW/Animated-Mojang#client@1.0.0-mc26.51"
 | restyleLoadingProgress | true | 对首次菜单前匹配到的 JSON 进度条改色 |
 | replayOnReturnToMenu | false | 返回主菜单时请求重播开场 |
 | blockMenuInputDuringIntro | true | 菜单揭示前阻止按钮按下 |
+| mojangLogoAnimation | true | 加载完成后播放 Mojang Studios 开场 |
+| mojangFadeIn | true | 开场在加载界面上渐显，而不是直接切换 |
+| mojangCardDive | true | 镜头掠过完成的 Mojang 画面飞入洞穴（需开启 caveBackground 和 minecraftTitleAnimation）；否则开场在飞行开始时淡出 |
+| holdMenuMusic | true | 开场及其音效期间暂缓菜单音乐，结束后立即开始 |
+| startupSound | true | Mojang 开场时播放启动音效 |
+| startupSoundFile | startup.ogg | resources/sounds/animated_mojang/ 中的音效文件 |
+| startupSoundVolume | 1.0 | 启动音效音量，另按游戏主音量和音效音量缩放；限制在 0–1 |
+| startupSoundDelayMs | 350 | 音效开始的标志时间（标志等待音效）；限制在 0–3000 |
+| introFlightStartMs | 4866 | 镜头飞行开始的标志时间；不早于 STUDIOS 完成（3560）；限制在 3560–20000 |
 | maxPresentationSeconds | 15 | 资源等待和展示超时，限制在 5–60 秒 |
 | debugScreens | false | 手动开启后记录 JSON 页面名 |
 | menuScreenNames | start_screen | JSON 主菜单识别列表 |
 | titleControlNames | minecraft_title、title_image、logo | 原标题控件候选名称 |
+
+开场的每个部分都可以单独关闭：Mojang 开场（`mojangLogoAnimation`）、其渐显、掠过画面的飞行、音效、菜单音乐暂缓、标题与镜头飞行（`minecraftTitleAnimation`）、洞穴（`caveBackground`）以及进度条颜色。关闭飞行时，开场直接淡入菜单，属于飞行部分的音效也一并淡出。默认值沿用原模组的时间；较长的自定义配乐可通过 `startupSoundFile`、`startupSoundDelayMs` 和 `introFlightStartMs` 同步。
 
 发行版已移除资源预读、运镜状态、帧间卡顿及周期性能诊断日志。默认仅输出版本加载信息和必要异常提示。
 

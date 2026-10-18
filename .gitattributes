@@ -48,6 +48,9 @@
 # *.svg    binary
 *.eps      binary
 
+# Audio
+*.ogg      binary
+
 # Scripts
 *.bash     text eol=lf
 *.fish     text eol=lf

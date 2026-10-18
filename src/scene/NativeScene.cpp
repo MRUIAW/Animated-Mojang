@@ -141,6 +141,9 @@ bool NativeScene::textureAvailable(double timeMs) {
         || refreshTexture(*openingTextureState, timeMs);
     return caveReady && openingReady;
 }
+bool NativeScene::openingTextureReady(double timeMs) {
+    return std::isfinite(timeMs) && openingTextureState->location && refreshTexture(*openingTextureState, timeMs);
+}
 bool NativeScene::refreshTexture(TextureState& asset, double timeMs) {
     auto  group = asset.group.lock();
     bool  ready = false;

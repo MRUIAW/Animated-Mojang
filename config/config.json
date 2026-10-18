@@ -1,13 +1,22 @@
 {
-  "version": 4,
+  "version": 5,
   "enabled": true,
   "preferJsonMainMenu": true,
   "minecraftTitleAnimation": true,
+  "mojangLogoAnimation": true,
+  "mojangFadeIn": true,
+  "mojangCardDive": true,
+  "holdMenuMusic": true,
   "caveBackground": true,
   "restyleLoadingProgress": true,
   "replayOnReturnToMenu": false,
   "blockMenuInputDuringIntro": true,
   "debugScreens": false,
+  "startupSound": true,
+  "startupSoundFile": "startup.ogg",
+  "startupSoundVolume": 1.0,
+  "startupSoundDelayMs": 350,
+  "introFlightStartMs": 4866,
   "maxPresentationSeconds": 15,
   "menuScreenNames": [
     "start_screen"

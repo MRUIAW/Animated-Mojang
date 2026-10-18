@@ -10,7 +10,7 @@ function crc32(bytes) {
     for(const b of bytes) crc=crcTable[(crc^b)&255]^(crc>>>8);
     return (crc^0xffffffff)>>>0;
 }
-export function readPinnedPNG(path,sha) {
+export function readPinnedPNG(path,sha,maxSize=512) {
     const file=fs.readFileSync(path);
     if(createHash('sha1').update(Buffer.from('blob '+file.length+'\0')).update(file).digest('hex')!==sha)
         throw Error('Upstream atlas integrity mismatch: '+path);
@@ -29,7 +29,7 @@ export function readPinnedPNG(path,sha) {
     if(!header||header[8]!==8||![3,6].includes(header[9])||header[10]||header[11]||header[12])
         throw Error('Unsupported source PNG format');
     const w=header.readUInt32BE(0),h=header.readUInt32BE(4),bpp=header[9]===6?4:1;
-    if(!w||!h||w>512||h>512) throw Error('Invalid source PNG dimensions');
+    if(!w||!h||w>maxSize||h>maxSize) throw Error('Invalid source PNG dimensions');
     const raw=inflateSync(Buffer.concat(idat),{maxOutputLength:(w*bpp+1)*h});
     if(raw.length!==(w*bpp+1)*h) throw Error('PNG row length mismatch');
     const scan=Buffer.alloc(w*h*bpp);

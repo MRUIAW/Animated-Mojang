@@ -36,6 +36,12 @@ bool MyMod::load() {
     }
     if (!std::isfinite(mConfig.maxPresentationSeconds)) mConfig.maxPresentationSeconds = 15;
     mConfig.maxPresentationSeconds = std::clamp(mConfig.maxPresentationSeconds, 5.0, 60.0);
+    if (!std::isfinite(mConfig.startupSoundVolume)) mConfig.startupSoundVolume = 1;
+    mConfig.startupSoundVolume = std::clamp(mConfig.startupSoundVolume, 0.0, 1.0);
+    if (!std::isfinite(mConfig.startupSoundDelayMs)) mConfig.startupSoundDelayMs = 350;
+    mConfig.startupSoundDelayMs = std::clamp(mConfig.startupSoundDelayMs, 0.0, 3000.0);
+    if (!std::isfinite(mConfig.introFlightStartMs)) mConfig.introFlightStartMs = 4866;
+    mConfig.introFlightStartMs = std::clamp(mConfig.introFlightStartMs, 3560.0, 20000.0);
     animated_mojang::client::start(mConfig, getSelf().getModDir());
     if (mConfig.enabled && mConfig.caveBackground)
         animated_mojang::client::prepareCave(getSelf().getModDir());

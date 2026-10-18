@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "animation/MojangIntro.h"
 #include "animation/Timeline.h"
 #include "ll/api/event/EventBus.h"
 #include "ll/api/event/input/KeyInputEvent.h"
@@ -36,8 +37,15 @@
 #include "mc/client/gui/oreui/routing/RouterLocation.h"
 #include "mc/client/gui/screens/controllers/StartMenuScreenController.h"
 #include "mc/client/renderer/TextureGroup.h"
+#include "mc/client/options/IOptionRegistry.h"
+#include "mc/client/sound/MusicManager.h"
+#include "mc/client/sound/SoundEngine.h"
 #include "mc/client/renderer/game/GameRenderer.h"
 #include "mc/client/renderer/screen/MinecraftUIRenderContext.h"
+#include "mc/client/game/IMinecraftGame.h"
+#include "mc/deps/core/file/Path.h"
+#include "mc/options/option_types/FloatOption.h"
+#include "mc/options/option_types/OptionType.h"
 #include "mc/deps/core/file/PathView.h"
 #include "mc/deps/core/math/Color.h"
 #include "mc/deps/core/resource/ResourceFileSystem.h"
@@ -48,6 +56,7 @@
 #include "mc/deps/minecraft_renderer/renderer/IsMissingTexture.h"
 #include "mc/deps/minecraft_renderer/renderer/TextureLoadState.h"
 #include "mc/deps/minecraft_renderer/renderer/TexturePtr.h"
+#include "ll/api/io/FileUtils.h"
 #include "mod/MyMod.h"
 #include "scene/NativeScene.h"
 #include "scene/AssetRefresh.h"
@@ -76,11 +85,23 @@ struct Runtime {
     bool     warnedTitle = false;
     double   firstMenuRenderMs = -1;
     Frame    frame;
+    MojangIntro                                   intro;
+    IntroFrame                                    introFrame;
+    std::vector<ResourceLocation>                 introLocations;
+    std::vector<std::unique_ptr<mce::TexturePtr>> introTextures;
+    std::array<scene::AssetRefresh, 3>             introRefresh;
+    std::string  startupSound; // Kept alive for the session: the engine may stream from this buffer.
+    SoundEngine* soundEngine  = nullptr;
+    uint64       soundHandle  = 0;
+    bool         soundPending = false, soundFaded = false, soundPlaying = false, userSkipped = false, fadeSound = false;
+    bool         cardBackdrop = false; // The opening plane shows the Mojang card instead of the loading picture.
+    double       introReleasedAt = -1;
     std::unordered_set<std::string> loggedScreens;
 };
 Runtime                        runtime;
 std::atomic_bool               active = false, skipRequested = false;
 std::atomic_bool               skipAllowed = false;
+std::atomic_bool               holdMusic = false, startMusic = false;
 std::atomic<ScreenView*>       blockedView    = nullptr;
 std::atomic<ScreenController*> menuController = nullptr;
 ll::event::ListenerPtr         keyListener;
@@ -117,16 +138,32 @@ std::string assetPath(size_t index) {
     auto utf8 = path.generic_u8string();
     return {reinterpret_cast<char const*>(utf8.data()), utf8.size()};
 }
-BedrockTextureData const* textureData(size_t index) {
-    if (index >= runtime.textures.size() || !runtime.textures[index]) return nullptr;
-    auto const* data = runtime.textures[index]->mClientTexture.get();
+BedrockTextureData const* loadedTexture(std::vector<std::unique_ptr<mce::TexturePtr>> const& textures, size_t index) {
+    if (index >= textures.size() || !textures[index]) return nullptr;
+    auto const* data = textures[index]->mClientTexture.get();
     if (!data || data->mIsMissingTexture != IsMissingTexture::No
         || !(static_cast<unsigned>(data->mTextureLoadState) & static_cast<unsigned>(TextureLoadState::LoadedBit)))
         return nullptr;
     return data;
 }
+BedrockTextureData const* textureData(size_t index) { return loadedTexture(runtime.textures, index); }
+bool introTexturesReady() {
+    for (size_t i = 0; i < runtime.introLocations.size(); ++i)
+        if (!loadedTexture(runtime.introTextures, i)) return false;
+    return true;
+}
+ResourceLocation const* openingLocation() {
+    if (runtime.cardBackdrop && runtime.introLocations.size() > 2) return &runtime.introLocations[2];
+    return runtime.caveLocations.size() > 1 ? &runtime.caveLocations[1] : nullptr;
+}
+// Swap the opening plane between the loading picture (boot, replays) and the Mojang card (after the intro).
+void useCardBackdrop(bool card) {
+    if (runtime.cardBackdrop == card || runtime.caveLocations.empty()) return;
+    runtime.cardBackdrop = card;
+    runtime.nativeScene.setTextureSource(runtime.textureGroup.lock(), &runtime.caveLocations[0], openingLocation());
+}
 void queueTextures(std::shared_ptr<mce::TextureGroup> const& group) {
-    if (!group || (runtime.locations.empty() && runtime.caveLocations.empty())) return;
+    if (!group || (runtime.locations.empty() && runtime.caveLocations.empty() && runtime.introLocations.empty())) return;
     std::erase_if(runtime.queuedGroups, [](auto const& item) { return item.expired(); });
     const bool queued = std::any_of(runtime.queuedGroups.begin(),runtime.queuedGroups.end(),
         [&](auto const& item) { return item.lock()==group; });
@@ -137,9 +174,10 @@ void queueTextures(std::shared_ptr<mce::TextureGroup> const& group) {
         if (!queued && runtime.caveLocations.size() > 1)
             group->loadTexturesAsync(gsl::span<ResourceLocation>{runtime.caveLocations.data() + 1, 1}, std::nullopt);
         if (!queued) group->loadTexturesAsync(gsl::span<ResourceLocation>{runtime.caveLocations.data(), 1}, std::nullopt);
-        runtime.nativeScene.setTextureSource(group, &runtime.caveLocations[0],
-            runtime.caveLocations.size() > 1 ? &runtime.caveLocations[1] : nullptr);
+        runtime.nativeScene.setTextureSource(group, &runtime.caveLocations[0], openingLocation());
     }
+    if (!queued && !runtime.introLocations.empty())
+        group->loadTexturesAsync(gsl::span<ResourceLocation>{runtime.introLocations}, std::nullopt);
     if (!queued && !runtime.locations.empty())
         group->loadTexturesAsync(gsl::span<ResourceLocation>{runtime.locations}, std::nullopt);
     // Acquire the actual color textures now, not just their descriptions.
@@ -150,6 +188,13 @@ void queueTextures(std::shared_ptr<mce::TextureGroup> const& group) {
             group->getTexture(runtime.locations[i], false, std::nullopt, cg::TextureSetLayerType::Color)
         );
     }
+    runtime.introTextures.resize(runtime.introLocations.size());
+    runtime.introRefresh = {};
+    for (size_t i = 0; i < runtime.introTextures.size(); ++i) {
+        runtime.introTextures[i] = std::make_unique<mce::TexturePtr>(
+            group->getTexture(runtime.introLocations[i], false, std::nullopt, cg::TextureSetLayerType::Color)
+        );
+    }
     runtime.textureGroup = group;
     if (!queued) runtime.queuedGroups.push_back(group);
 
@@ -158,15 +203,23 @@ bool loadTextures(MinecraftUIRenderContext& ctx) {
     if (runtime.textureGroup.lock() != ctx.mTextureGroup) {
         runtime.textures.clear();
         runtime.titleRefresh = {};
+        runtime.introTextures.clear();
+        runtime.introRefresh = {};
     }
     queueTextures(ctx.mTextureGroup);
-    if (!runtime.config.minecraftTitleAnimation) return true;
-    if (runtime.textures.empty()) runtime.textures.resize(9);
     bool ready = true;
-    for (size_t i = 0; i < runtime.textures.size(); ++i) {
+    if (runtime.config.minecraftTitleAnimation && runtime.textures.empty()) runtime.textures.resize(9);
+    for (size_t i = 0; runtime.config.minecraftTitleAnimation && i < runtime.textures.size(); ++i) {
         const bool loaded = runtime.titleRefresh[i].update(runtime.textures[i], nowMs(),
             [&] { return std::make_unique<mce::TexturePtr>(ctx.getTexture(runtime.locations[i], false)); },
             [&](auto const&) { return textureData(i) != nullptr; });
+        ready = loaded && ready;
+    }
+    runtime.introTextures.resize(runtime.introLocations.size());
+    for (size_t i = 0; i < runtime.introTextures.size(); ++i) {
+        const bool loaded = runtime.introRefresh[i].update(runtime.introTextures[i], nowMs(),
+            [&] { return std::make_unique<mce::TexturePtr>(ctx.getTexture(runtime.introLocations[i], false)); },
+            [&](auto const&) { return loadedTexture(runtime.introTextures, i) != nullptr; });
         ready = loaded && ready;
     }
     return ready;
@@ -214,7 +267,43 @@ std::optional<scene::CavePage> pageForStack(ISceneStack const& stack, IClientIns
     }
     return scene::cavePageForStackEntries(entries, static_cast<std::size_t>(std::max(0, stack.getScheduledPopCount())));
 }
-void updatePresentation(double time, bool foregroundMenu, bool titleReady) {
+// Skipping the opening also removes the Mojang intro that precedes it.
+void skipOpening() {
+    runtime.intro.skip();
+    runtime.timeline.skip();
+}
+void updateCamera(double time, std::optional<scene::CavePage> page) {
+    runtime.cameraFrame = runtime.camera.update(time, page, runtime.frame);
+    if (!runtime.introFrame.active || !runtime.introFrame.released) return;
+    if (runtime.introReleasedAt < 0) runtime.introReleasedAt = time;
+    if (!runtime.config.minecraftTitleAnimation) {
+        // No opening flight follows: fade the intro straight into the menu, and with it any part of the sound
+        // that belongs to the flight (a longer soundtrack would otherwise play over a still menu).
+        runtime.fadeSound               = true;
+        runtime.introFrame.overlayAlpha = 1 - Timeline::unit((time - runtime.introReleasedAt) / 500);
+        runtime.introFrame.active       = runtime.introFrame.overlayAlpha > 0;
+        if (!runtime.introFrame.active) runtime.intro.skip();
+        return;
+    }
+    // After the Mojang intro the flight dives past the finished card, like the original outro: the opening plane
+    // shows the card in place of the loading picture (which would show a progress bar again).
+    if (runtime.cardBackdrop && runtime.nativeScene.openingTextureReady(time)) {
+        runtime.introFrame.active = false;
+        if (runtime.cameraFrame.loadingBackdropAlpha <= 0 && runtime.frame.phase != Phase::Waiting) {
+            // Retire the intro once the plane has faded, so a later replay shows the loading picture again.
+            runtime.intro.skip();
+            useCardBackdrop(false);
+        }
+        return;
+    }
+    // Without the card, the overlay itself stays over the start of the flight and fades on the plane's schedule.
+    runtime.introFrame.overlayAlpha = runtime.cameraFrame.loadingBackdropAlpha;
+    runtime.introFrame.active       = runtime.introFrame.overlayAlpha > 0;
+    if (!runtime.introFrame.active && runtime.frame.phase != Phase::Waiting) runtime.intro.skip();
+    runtime.cameraFrame.loadingBackdropAlpha = 0;
+}
+// assetsReady: title (if enabled) and Mojang intro textures are loaded.
+void updatePresentation(double time, bool foregroundMenu, bool assetsReady) {
     if (foregroundMenu && runtime.pendingReplay) {
         runtime.pendingReplay = false;
         runtime.timeline = Timeline{Timing{.maxPresentationMs = runtime.config.maxPresentationSeconds * 1000.0}};
@@ -230,19 +319,86 @@ void updatePresentation(double time, bool foregroundMenu, bool titleReady) {
     }
     const bool caveReady = !runtime.config.caveBackground
         || runtime.nativeScene.textureAvailable(time);
-    const bool ready = !runtime.config.minecraftTitleAnimation || (titleReady && caveReady);
+    const bool ready = assetsReady && (!runtime.config.minecraftTitleAnimation || caveReady);
     if (foregroundMenu && !ready && !runtime.assetsTimedOut
         && time - runtime.firstMenuRenderMs >= runtime.config.maxPresentationSeconds * 1000.0) {
         runtime.assetsTimedOut = true;
-        runtime.timeline.skip();
+        skipOpening();
         logger().warn("Opening resources unavailable; releasing menu without camera flight.");
     }
-    if (skipRequested.exchange(false)) runtime.timeline.skip();
-    runtime.frame = runtime.timeline.update(time, foregroundMenu, ready, runtime.config.minecraftTitleAnimation);
+    // The Mojang intro plays once loading has finished, before the first opening only.
+    const bool introEnabled = !runtime.introLocations.empty();
+    if (introEnabled && foregroundMenu && ready && !runtime.intro.started()) runtime.intro.start(time);
+    if (runtime.intro.started() && !runtime.introFrame.released
+        && time - runtime.intro.startedAt() >= runtime.config.maxPresentationSeconds * 1000.0)
+        runtime.intro.skip();
+    if (skipRequested.exchange(false)) {
+        runtime.userSkipped = true;
+        skipOpening();
+    }
+    runtime.introFrame = runtime.intro.update(time);
+    if (runtime.introFrame.requestSound) runtime.soundPending = true;
+    // Once the dark overlay covers the loading picture, prepare the card for the flight to dive past.
+    if (runtime.introFrame.active && !runtime.introFrame.released && runtime.introFrame.overlayAlpha >= 1
+        && runtime.config.mojangCardDive && runtime.config.caveBackground && runtime.config.minecraftTitleAnimation)
+        useCardBackdrop(true);
+    if (!runtime.introFrame.active && !runtime.intro.started()) useCardBackdrop(false);
+    // Like the original, menu music waits for the logo (and for a longer soundtrack to finish), then starts at once.
+    const bool holding = runtime.config.holdMenuMusic
+                      && ((runtime.introFrame.active && !runtime.introFrame.released) || runtime.soundPlaying);
+    if (holdMusic.exchange(holding) && !holding) startMusic.store(true);
+    const bool introDone = !introEnabled || runtime.introFrame.released;
+    runtime.frame = runtime.timeline.update(time, foregroundMenu && introDone, ready,
+        runtime.config.minecraftTitleAnimation);
     skipAllowed.store(foregroundMenu && runtime.frame.phase != Phase::MenuIdle);
 
 }
-
+// The registry has no getter for every volume slider; find a float option by the tag options.txt saves it under.
+float optionValue(IOptionRegistry const& options, std::string_view tag, float fallback) {
+    for (int id = 0; id < 2048; ++id) {
+        const auto option = options.getIfValid(static_cast<OptionID>(id));
+        if (!option || !*option) continue;
+        auto const* impl = (*option)->mImpl.get();
+        if (impl && impl->mSaveTag.get() == tag && impl->mOptionType == OptionType::Float)
+            return static_cast<FloatOption const*>(*option)->mValue;
+    }
+    return fallback;
+}
+void updateStartupSound(IClientInstance& client) {
+    if (runtime.soundPending) {
+        runtime.soundPending = false;
+        bool started         = false;
+        if (!runtime.startupSound.empty() && client.getMinecraftGame_DEPRECATED().isAudioInitialized()) {
+            auto* engine        = client.getSoundEngine().get().get();
+            runtime.soundEngine = engine;
+            // Like the original, keep menu music from playing over the startup sound (a hard stop: a fade would
+            // linger on the music restarted for the flight).
+            if (runtime.config.holdMenuMusic) engine->stopMusic();
+            runtime.soundHandle = engine->playFromMemory(
+                Core::Path{"animated_mojang.startup"},
+                runtime.startupSound.data(),
+                runtime.startupSound.size(),
+                false,
+                0,
+                0,
+                // playFromMemory bypasses the volume sliders; apply main and sound volume like other game sounds.
+                static_cast<float>(runtime.config.startupSoundVolume)
+                    * optionValue(client.getOptions(), "audio_main", 1) * optionValue(client.getOptions(), "audio_sound", 1),
+                1,
+                false,
+                false
+            );
+            started = runtime.soundHandle != 0;
+        }
+        runtime.intro.soundResult(nowMs(), started);
+    }
+    if ((runtime.userSkipped || runtime.fadeSound) && runtime.soundEngine && runtime.soundHandle && !runtime.soundFaded) {
+        runtime.soundFaded = true;
+        runtime.soundEngine->fadeOut(runtime.soundHandle, runtime.userSkipped ? 0.3f : 0.5f);
+    }
+    runtime.soundPlaying = runtime.soundEngine && runtime.soundHandle && !runtime.soundFaded
+                        && runtime.soundEngine->isPlayingSound(runtime.soundHandle);
+}
 void fill(
     MinecraftUIRenderContext& ctx,
     float                     x,
@@ -258,6 +414,22 @@ void fill(
     area._y0 = y;
     area._y1 = y + height;
     ctx.fillRectangle(area, color, alpha);
+}
+void drawIntro(MinecraftUIRenderContext& ctx, glm::vec2 size) {
+    auto const& frame = runtime.introFrame;
+    fill(ctx, 0, 0, size.x, size.y, mce::Color{30, 30, 31}, frame.overlayAlpha);
+    const auto layout = introPlacement(size.x, size.y);
+    auto draw = [&](size_t texture, AtlasRect region, glm::vec2 pos, glm::vec2 extent, float alpha) {
+        auto const* data = loadedTexture(runtime.introTextures, texture);
+        if (!data || alpha <= 0) return;
+        ctx.drawImage(data->mClientTexture.get(), pos, extent, {region.u, region.v}, {region.width, region.height}, false);
+        // The logo frames are small; filter them instead of the UI's default point sampling.
+        ctx.flushImages(mce::Color{255, 255, 255}, alpha, HashedString{"ui_textured_and_glcolor_bilinear_sprite"});
+    };
+    draw(0, introLogoRegion(frame.logoFrame), {layout.logoX, layout.logoY}, {layout.logoWidth, layout.logoHeight},
+        frame.logoAlpha * frame.overlayAlpha);
+    draw(1, introStudiosRegion(), {layout.studiosX, layout.studiosY}, {layout.studiosWidth, layout.studiosHeight},
+        frame.studiosAlpha * frame.overlayAlpha);
 }
 void background(MinecraftUIRenderContext& ctx, glm::vec2 size, double time) {
     const bool drawn = runtime.nativeScene.draw(ctx.mScreenContext, size.x, size.y, time, runtime.cameraFrame,
@@ -435,15 +607,16 @@ LL_TYPE_INSTANCE_HOOK(
             if (!page && main && main.get() != current.get()) page = pageForStack(*main, *client);
         }
         backgroundFrame.pageResolved = page.has_value();
-        if (page && *page != scene::CavePage::Main && runtime.enteredMenu) runtime.timeline.skip();
+        if (page && *page != scene::CavePage::Main && runtime.enteredMenu) skipOpening();
         bool titleReady = !runtime.config.minecraftTitleAnimation;
         if (!titleReady && runtime.textures.size() == 9) {
             titleReady = true;
             for (std::size_t i = 0; i < 9; ++i) titleReady = textureData(i) != nullptr && titleReady;
         }
-        updatePresentation(time, page == scene::CavePage::Main, titleReady);
-        runtime.cameraFrame = runtime.camera.update(time, page, runtime.frame);
+        updatePresentation(time, page == scene::CavePage::Main, titleReady && introTexturesReady());
+        updateCamera(time, page);
         backgroundFrame.presentationUpdated = true;
+        if (client) updateStartupSound(*client);
     }
     origin(interpolation);
 }
@@ -502,10 +675,10 @@ LL_TYPE_INSTANCE_HOOK(DrawScreen, HookPriority::Normal, ScreenView, &ScreenView:
     if (!backgroundFrame.pageResolved) {
         auto page = scope.menu ? std::optional{scene::CavePage::Main} : pageForName(name);
         if (page) {
-            if (*page != scene::CavePage::Main && runtime.enteredMenu) runtime.timeline.skip();
+            if (*page != scene::CavePage::Main && runtime.enteredMenu) skipOpening();
             const bool ready = loadTextures(ctx);
             updatePresentation(time, *page == scene::CavePage::Main, ready);
-            runtime.cameraFrame = runtime.camera.update(time, page, runtime.frame);
+            updateCamera(time, page);
             backgroundFrame.pageResolved = true;
             backgroundFrame.presentationUpdated = true;
         }
@@ -524,7 +697,7 @@ LL_TYPE_INSTANCE_HOOK(DrawScreen, HookPriority::Normal, ScreenView, &ScreenView:
     runtime.enteredMenu = true;
     if (!backgroundFrame.presentationUpdated) {
         updatePresentation(time, true, ready);
-        runtime.cameraFrame = runtime.camera.update(time, scene::CavePage::Main, runtime.frame);
+        updateCamera(time, scene::CavePage::Main);
     }
     scope.frame   = runtime.frame;
     blockedView.store(runtime.config.blockMenuInputDuringIntro && scope.frame.menuAlpha < .95f ? this : nullptr);
@@ -556,6 +729,7 @@ LL_TYPE_INSTANCE_HOOK(DrawScreen, HookPriority::Normal, ScreenView, &ScreenView:
         logger().warn("Native title control not found; native title kept.");
     }
     origin(base);
+    if (runtime.introFrame.active) drawIntro(ctx, scope.size);
 }
 
 LL_TYPE_INSTANCE_HOOK(
@@ -629,6 +803,32 @@ LL_TYPE_INSTANCE_HOOK(
     origin(ctx, client, owner, layer);
 }
 LL_TYPE_INSTANCE_HOOK(
+    HoldMenuMusic,
+    HookPriority::Normal,
+    MusicManager,
+    &MusicManager::update,
+    void,
+    LocalPlayer const* player,
+    bool               isCreditsScreen,
+    bool               isLoadingProgressScreen
+) {
+    if (active.load() && holdMusic.load()) return;
+    if (active.load() && startMusic.load()) {
+        // The manager first drops the track it still believes is playing, then picks a new one after a random
+        // delay; skip that delay until a track has started again.
+        static int forced = 0;
+        const bool stale  = mCurrentMusic->get() != nullptr;
+        mNextSongDelay    = 0;
+        origin(player, isCreditsScreen, isLoadingProgressScreen);
+        if ((!stale && mCurrentMusic->get()) || ++forced > 120) {
+            startMusic.store(false);
+            forced = 0;
+        }
+        return;
+    }
+    origin(player, isCreditsScreen, isLoadingProgressScreen);
+}
+LL_TYPE_INSTANCE_HOOK(
     MenuButton,
     HookPriority::Normal,
     ScreenView,
@@ -656,6 +856,7 @@ using Hooks = ll::memory::HookRegistrar<
     DrawPanorama,
     DrawPaperDoll,
     DrawProgress,
+    HoldMenuMusic,
     MenuButton>;
 std::unique_ptr<Hooks> hooks;
 } // namespace
@@ -691,6 +892,17 @@ void start(Config const& config, std::filesystem::path const& modDirectory) {
                 runtime.locations.emplace_back(Core::PathView{path}, ResourceFileSystem::Raw);
             }
         }
+        runtime.introLocations.clear();
+        if (config.mojangLogoAnimation) {
+            std::vector<char const*> names{"mojang_animation.png", "studios.png"};
+            if (config.mojangCardDive && config.caveBackground && config.minecraftTitleAnimation)
+                names.push_back("mojang_card.png");
+            for (auto const* name : names) {
+                auto        utf8 = (runtime.resources / "textures/animated_mojang/intro" / name).generic_u8string();
+                std::string path{reinterpret_cast<char const*>(utf8.data()), utf8.size()};
+                runtime.introLocations.emplace_back(Core::PathView{path}, ResourceFileSystem::Raw);
+            }
+        }
         if (config.caveBackground) {
             runtime.caveLocations.reserve(2);
             for (auto const* name : {"atlas.png", "loading_screen-100.png"}) {
@@ -703,6 +915,26 @@ void start(Config const& config, std::filesystem::path const& modDirectory) {
         runtime.warnedTitle = false;
         runtime.firstMenuRenderMs = -1;
         runtime.loggedScreens.clear();
+        runtime.introTextures.clear();
+        runtime.introRefresh = {};
+        runtime.introFrame   = {};
+        runtime.soundEngine  = nullptr;
+        runtime.soundHandle  = 0;
+        runtime.soundPending = runtime.soundFaded = runtime.soundPlaying = runtime.userSkipped = runtime.fadeSound = false;
+        runtime.cardBackdrop    = false;
+        runtime.introReleasedAt = -1;
+        runtime.startupSound.clear();
+        if (!runtime.introLocations.empty() && config.startupSound) {
+            auto sound = ll::file_utils::readFile(
+                runtime.resources / "sounds/animated_mojang" / std::filesystem::path{std::u8string{
+                    config.startupSoundFile.begin(), config.startupSoundFile.end()}},
+                true
+            );
+            if (sound && !sound->empty()) runtime.startupSound = *std::move(sound);
+            else logger().warn("Startup sound not found; Mojang intro plays silently.");
+        }
+        runtime.intro = MojangIntro{
+            !runtime.startupSound.empty(), config.startupSoundDelayMs, config.introFlightStartMs, config.mojangFadeIn};
     }
     active.store(true);
     skipAllowed.store(false);
@@ -722,11 +954,17 @@ void stop() {
     menuController.store(nullptr);
     skipRequested.store(false);
     skipAllowed.store(false);
+    holdMusic.store(false);
+    startMusic.store(false);
     if (keyListener) ll::event::EventBus::getInstance().removeListener<ll::event::KeyInputEvent>(keyListener);
     keyListener.reset();
     hooks.reset();
     std::lock_guard guard(runtime.mutex);
+    if (runtime.soundEngine && runtime.soundHandle) runtime.soundEngine->stop(runtime.soundHandle);
+    runtime.soundEngine = nullptr;
+    runtime.soundHandle = 0;
     runtime.textures.clear();
+    runtime.introTextures.clear();
     runtime.queuedGroups.clear();
     runtime.textureGroup.reset();
     runtime.nativeScene.reset();
