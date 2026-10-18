@@ -20,6 +20,7 @@ The `-mc26.51` suffix identifies the compatible Minecraft version family, follow
 
 - A 3D cave with baked colored lighting, animated flowing lava, wall-mounted soul torches, and flame/smoke particles.
 - A flight from a loading-screen image into the cave, synchronized with the title animation and menu fade. Press **Esc** to skip.
+- The original mod's Mojang Studios intro after loading: the animated Mojang logo, the STUDIOS fade-in and the startup sound, synchronized like the original; the flight then dives past the finished Mojang card into the cave. Menu music waits for the logo and starts with the flight. Esc skips both.
 - Camera views and transitions for the main menu, world list, settings, dressing room, Realms, and Marketplace.
 - Resource preloading and reused scene buffers. After a rendering stall, animations resume without jumping over the entire stalled interval.
 - The game's built-in JSON main menu is selected by default for title and control animations. No separate resource pack activation is required.
@@ -48,7 +49,7 @@ When updating manually, keep your existing **mods/AnimatedMojang/config/config.j
 
 ## Configuration
 
-Edit **mods/AnimatedMojang/config/config.json** and restart the game. The configuration schema version is **4**; it is independent of the mod release version.
+Edit **mods/AnimatedMojang/config/config.json** and restart the game. The configuration schema version is **5**; it is independent of the mod release version.
 
 | Option | Default | Behavior |
 | --- | --- | --- |
@@ -59,10 +60,21 @@ Edit **mods/AnimatedMojang/config/config.json** and restart the game. The config
 | restyleLoadingProgress | true | Recolor matching JSON progress bars before the first main menu |
 | replayOnReturnToMenu | false | Request intro replay when returning to the main menu |
 | blockMenuInputDuringIntro | true | Block menu button presses before the menu is revealed |
+| mojangLogoAnimation | true | Play the Mojang Studios intro after loading |
+| mojangFadeIn | true | Fade the intro in over the loading screen instead of cutting to it |
+| mojangCardDive | true | Fly past the finished Mojang card into the cave (needs caveBackground and minecraftTitleAnimation); otherwise the intro fades out over the flight |
+| holdMenuMusic | true | Hold menu music during the intro and its sound, then start it at once |
+| startupSound | true | Play the startup sound with the Mojang intro |
+| startupSoundFile | startup.ogg | Sound file in resources/sounds/animated_mojang/ |
+| startupSoundVolume | 1.0 | Startup sound volume, further scaled by the game's main and sound volume; clamped to 0–1 |
+| startupSoundDelayMs | 350 | Logo time at which the sound starts (the logo waits for it); clamped to 0–3000 |
+| introFlightStartMs | 4866 | Logo time at which the flight starts; never before the finished STUDIOS frame (3560); clamped to 3560–20000 |
 | maxPresentationSeconds | 15 | Resource/presentation timeout; clamped to 5–60 seconds |
 | debugScreens | false | Log JSON screen names when explicitly enabled |
 | menuScreenNames | start_screen | JSON main-menu recognition list |
 | titleControlNames | minecraft_title, title_image, logo | Candidate original title controls |
+
+Every part of the opening can be turned off on its own: the Mojang intro (`mojangLogoAnimation`), its fade-in, the dive past the card, the sound, the menu-music hold, the title and camera flight (`minecraftTitleAnimation`), the cave (`caveBackground`) and the progress bar color. Without the flight, the intro fades straight into the menu, together with any part of the sound that belongs to the flight. The defaults follow the original mod's timing; a longer custom soundtrack can be synchronized with `startupSoundFile`, `startupSoundDelayMs` and `introFlightStartMs`.
 
 Routine resource, camera, frame-gap and periodic performance diagnostics are removed from the release. Normal logging is limited to the version message and actionable warnings/errors.
 

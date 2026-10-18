@@ -1,3 +1,4 @@
+#include "animation/MojangIntro.h"
 #include "animation/Timeline.h"
 
 #include <cmath>
@@ -80,6 +81,127 @@ int main() {
         skipped.update(0, true, false, true);
         skipped.skip();
         check(skipped.update(100, true, false, true).menuAlpha == 1, "escape releases pending assets");
+
+        // Run an intro at 60 Hz, starting the sound on the first request; returns the time it released the menu.
+        auto runIntro = [](MojangIntro& intro, double& now, double until, bool soundWorks) {
+            double released = -1;
+            for (; now <= until; now += 16) {
+                auto frame = intro.update(now);
+                if (frame.requestSound) intro.soundResult(now, soundWorks);
+                if (frame.released && released < 0) released = now;
+            }
+            return released;
+        };
+        MojangIntro idle;
+        check(!idle.update(0).active && !idle.update(0).released, "intro waits for loading to finish");
+        MojangIntro intro;
+        intro.start(1000);
+        auto first = intro.update(1000);
+        check(first.active && first.overlayAlpha == 0 && first.logoAlpha == 0, "intro starts transparent");
+        auto halfway = intro.update(1000 + IntroTiming::leadInMs / 2);
+        check(std::abs(halfway.overlayAlpha - .5f) < .01f && halfway.logoAlpha == 0, "dark overlay fades in first");
+        auto opaque = intro.update(1000 + IntroTiming::leadInMs);
+        check(opaque.overlayAlpha == 1 && opaque.logoFrame == 0 && opaque.logoAlpha == 0, "logo starts once dark");
+        intro.update(1000 + IntroTiming::leadInMs + 16);
+        double introNow = 1000 + IntroTiming::leadInMs + 32;
+        bool   requested = false;
+        for (; introNow < 1000 + IntroTiming::leadInMs + IntroTiming::soundDelayMs + 48; introNow += 16) {
+            auto frame = intro.update(introNow);
+            requested  = requested || frame.requestSound;
+            if (frame.requestSound) check(frame.logoFrame == 350 / 40, "sound is requested at 350 ms of logo time");
+        }
+        check(requested && !intro.soundStarted(), "sound requested at its sync point");
+        auto held = intro.update(introNow);
+        check(held.logoFrame == 350 / 40 && !held.requestSound, "logo holds between sound retries");
+        auto retry = intro.update(introNow + 200);
+        check(retry.requestSound, "sound retried after 200 ms");
+        intro.soundResult(introNow + 200, true);
+        introNow += 216;
+        const double started = introNow;
+        const double released = runIntro(intro, introNow, started + 6000, true);
+        check(intro.soundStarted(), "sound started");
+        check(
+            std::abs(released - started - (IntroTiming::totalMs - IntroTiming::soundDelayMs)) <= 32,
+            "logo resumes at the sound start and releases the menu when sound and tail end"
+        );
+        auto after = intro.update(introNow);
+        check(after.active && after.released && after.overlayAlpha == 1 && after.studiosAlpha == 1,
+            "released intro keeps the finished overlay up for the opening to fade");
+
+        MojangIntro studios;
+        studios.start(0);
+        double studiosNow = 0;
+        IntroFrame beforeStudios, afterStudios;
+        for (; studiosNow <= 4000; studiosNow += 16) {
+            auto frame = studios.update(studiosNow);
+            if (frame.requestSound) studios.soundResult(studiosNow, true);
+            if (frame.logoFrame < IntroTiming::frameCount - 1) beforeStudios = frame;
+            else if (afterStudios.studiosAlpha == 0 && frame.studiosAlpha > 0) afterStudios = frame;
+        }
+        check(beforeStudios.studiosAlpha == 0, "STUDIOS hidden during the logo animation");
+        check(afterStudios.logoFrame == IntroTiming::frameCount - 1, "STUDIOS fades in after the last logo frame");
+
+        MojangIntro silent;
+        silent.start(0);
+        double silentNow = 0;
+        const double silentRelease = runIntro(silent, silentNow, 20000, false);
+        check(!silent.soundStarted() && silentRelease >= 8000
+                && silentRelease < 8000 + IntroTiming::totalMs + IntroTiming::leadInMs + 100,
+            "missing audio releases the logo after the 8 s fallback");
+
+        // The original outro's timing: sound at 760 ms of logo time, flight right after the finished STUDIOS frame.
+        MojangIntro outro(true, 760, 3560);
+        outro.start(0);
+        double outroNow = 0, outroSound = -1;
+        const double outroRelease = [&] {
+            for (; outroNow <= 10000; outroNow += 16) {
+                auto frame = outro.update(outroNow);
+                if (frame.requestSound) {
+                    outro.soundResult(outroNow, true);
+                    outroSound = outroNow;
+                }
+                if (frame.released) return outroNow;
+            }
+            return -1.0;
+        }();
+        check(outroSound >= IntroTiming::leadInMs + 760 && outroSound < IntroTiming::leadInMs + 760 + 50,
+            "custom sound point");
+        check(std::abs(outroRelease - outroSound - (3560 - 760)) <= 32, "custom flight start after the sound starts");
+        auto outroFrame = outro.update(outroNow);
+        check(outroFrame.logoFrame == IntroTiming::frameCount - 1 && outroFrame.studiosAlpha == 1,
+            "flight starts on the finished logo and STUDIOS");
+        MojangIntro early(true, 350, 1000);
+        early.start(0);
+        double earlyNow = 0;
+        const double earlyRelease = runIntro(early, earlyNow, 10000, true);
+        check(earlyRelease >= IntroTiming::leadInMs + IntroTiming::studiosEndMs, "flight never starts before STUDIOS");
+
+        MojangIntro cut(false, IntroTiming::soundDelayMs, IntroTiming::totalMs, false);
+        cut.start(0);
+        auto cutFrame = cut.update(0);
+        check(cutFrame.active && cutFrame.overlayAlpha == 1, "without the fade-in the overlay cuts in at once");
+
+        MojangIntro introHitch(false);
+        introHitch.start(0);
+        introHitch.update(IntroTiming::leadInMs);
+        introHitch.update(IntroTiming::leadInMs + 16);
+        check(introHitch.update(3000).logoFrame == 50 / 40, "a hitch advances the logo by at most 50 ms");
+
+        MojangIntro skippedIntro;
+        skippedIntro.start(0);
+        skippedIntro.update(0);
+        skippedIntro.skip();
+        check(!skippedIntro.update(16).active && skippedIntro.update(16).released, "escape removes the intro at once");
+
+        auto layout = introPlacement(1920, 1080);
+        check(std::abs(layout.logoX + layout.logoWidth / 2 - 960) < .01f
+                && std::abs(layout.studiosX + layout.studiosWidth / 2 - 960) < .01f
+                && layout.studiosY > layout.logoY + layout.logoHeight,
+            "logo and STUDIOS centered, STUDIOS below the logo");
+        auto lastLogo = introLogoRegion(78);
+        check(lastLogo.u + lastLogo.width <= 1 && lastLogo.v + lastLogo.height <= 1
+                && std::abs(lastLogo.u - (8 * 600 + 31) / 6000.0f) < 1e-6f,
+            "last logo frame inside the atlas");
 
         for (int frame = 0; frame < 69; ++frame) {
             auto uv = titleRegion(frame);

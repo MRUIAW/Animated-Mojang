@@ -9,6 +9,24 @@ const commit = 'ef68ffb6d6cdbdfab4db960497719416e8b7a6bc';
 const verifyOnly = process.argv.includes('--verify-only');
 const assets = [
   {
+    "source": "src/main/resources/assets/labymod_menu/textures/gui/mojang_animation.png",
+    "dest": "resources/textures/animated_mojang/intro/mojang_animation.png",
+    "sha": "b466e9b50b727353a82602755fe50cf44fd5ca6e",
+    "bytes": 1349277
+  },
+  {
+    "source": "src/main/resources/assets/labymod_menu/textures/gui/studios.png",
+    "dest": "resources/textures/animated_mojang/intro/studios.png",
+    "sha": "f216dbc87185d1b9abe879c3dda296c11055b6f9",
+    "bytes": 23031
+  },
+  {
+    "source": "src/main/resources/assets/labymod_menu/sounds/startup.ogg",
+    "dest": "resources/sounds/animated_mojang/startup.ogg",
+    "sha": "b37095b271ba0671906bf09f114e2a10d150ac5c",
+    "bytes": 208669
+  },
+  {
     "source": "src/main/resources/assets/labymod_menu/textures/gui/title/cave_particles_clean.png",
     "dest": "resources/textures/animated_mojang/cave/particles.png",
     "sha": "1bd1d1e83715650c95ca3d6facae8db23720a49e"

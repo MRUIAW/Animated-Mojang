@@ -19,6 +19,10 @@ $files = @(
     'resources/data/normal_cave.mesh', 'resources/data/normal_cave.particles',
     'resources/textures/animated_mojang/cave/atlas.png',
     'resources/textures/animated_mojang/cave/loading_screen-100.png',
+    'resources/sounds/animated_mojang/startup.ogg',
+    'resources/textures/animated_mojang/intro/mojang_animation.png',
+    'resources/textures/animated_mojang/intro/studios.png',
+    'resources/textures/animated_mojang/intro/mojang_card.png',
     'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'NOTICE.md', 'LICENSE'
 )
 $files += 0..8 | ForEach-Object { "resources/textures/animated_mojang/title/minecraft_animation/minecraft_$_.png" }

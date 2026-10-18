@@ -32,6 +32,7 @@ public:
     NativeScene& operator=(NativeScene const&) = delete;
 
     bool textureAvailable(double timeMs);
+    bool openingTextureReady(double timeMs);
     bool draw(ScreenContext& context, float width, float height, double timeMs, CaveCameraFrame const& camera,
         bool openingImageOnly = false);
     void load(std::filesystem::path const& file);

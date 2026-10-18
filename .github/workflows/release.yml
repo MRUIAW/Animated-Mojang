@@ -36,6 +36,7 @@ jobs:
         run: |
           node tools/fetch-assets.mjs --verify-only
           node tools/build-cave-atlas.mjs --verify-only
+          node tools/build-intro-card.mjs --verify-only
           node tools/build-cave.mjs --verify-only
           node tools/build-cave-particles.mjs --verify-only
           node tests/cave_builder_tests.mjs
