@@ -19,7 +19,7 @@ jobs:
           if ($env:RELEASE_TAG -ne "v$($tooth.version)") { throw 'Release tag must match tooth.json version.' }
       - id: notes
         uses: ffurrer2/extract-release-notes@v3
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - uses: xmake-io/github-action-setup-xmake@v1
