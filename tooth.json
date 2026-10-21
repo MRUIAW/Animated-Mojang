@@ -5,7 +5,7 @@
   "version": "1.0.0-mc26.51",
   "info": {
     "name": "Animated Mojang",
-    "description": "Animated Minecraft title, 3D cave background and menu camera transitions for Bedrock 1.26.51.01 / LeviLamina 26.51.6 client.",
+    "description": "Animated Minecraft title, 3D cave background and menu camera transitions for Bedrock 1.26.51.01 / LeviLamina 26.51.* client.",
     "tags": [
       "platform:levilamina",
       "type:mod",
@@ -18,7 +18,7 @@
       "label": "client",
       "platform": "win-x64",
       "dependencies": {
-        "github.com/LiteLDev/LeviLamina#client": "26.51.6"
+        "github.com/LiteLDev/LeviLamina#client": "26.51.*"
       },
       "assets": [
         {
