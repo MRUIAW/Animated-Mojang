@@ -4,15 +4,15 @@ This file is for agents and developers maintaining this repository. Read README.
 
 ## Supported baseline and sources
 
-- Minecraft Bedrock for Windows **1.26.51.01**, LeviLamina **26.51.6 client**, Windows x64, C++20 with clang-cl and the MD runtime.
-- Release version **1.0.0-mc26.51** and configuration schema version **4** are independent.
+- Minecraft Bedrock for Windows **1.26.60.05**, LeviLamina **26.60.7 client SDK**, Windows x64, C++23 with clang-cl and the MD runtime. Pin the SDK to `26.60.7` in xmake.lua. Use `>=26.60.7 <26.61.0` for the client package dependency in tooth.json.
+- Mod version **1.1.0** and configuration schema version **5** are independent.
 - [LeviLamina documentation](https://lamina.levimc.org/zh/) and [API reference](https://lamina.levimc.org/api/).
 - [Hook guide](https://lamina.levimc.org/zh/developer_guides/how_to_guides/hook_guide/) and [C++ style guide](https://lamina.levimc.org/zh/maintainer_guides/cpp_style_guide/).
 - [Official release procedure](https://lamina.levimc.org/zh/developer_guides/tutorials/create_your_first_mod/#发布你的模组), [lip manifest reference](https://lip.levimc.org/concepts/package_manifest.html), and [lip v3 JSON schema](https://github.com/futrime/lip/blob/main/schemas/manifest.schema.json).
 - [Original Java mod](https://github.com/chara2015/animated_mojang/tree/ef68ffb6d6cdbdfab4db960497719416e8b7a6bc). Assets are pinned to that commit by tools/fetch-assets.mjs.
 - vibe_development/animated_mojang_implementation.md describes the original mod. vibe_development/levilamina_api_feasibility.md is initial research, not the current implementation specification.
 
-Online API documentation can describe newer releases. For ABI-sensitive changes, inspect the headers in the **installed 26.51.6 xmake package** first. Do not assume Java startup callbacks, render layers, block models, or loading progress exist in Bedrock. IDA is an optional investigation tool when headers alone cannot explain native behavior; it is not required for ordinary camera edits.
+Online API documentation can describe newer releases. For ABI-sensitive changes, inspect the headers in the **installed SDK selected by xmake** first and record the exact resolved version when reporting validation. Do not assume Java startup callbacks, render layers, block models, or loading progress exist in Bedrock. IDA is an optional investigation tool when headers alone cannot explain native behavior; it is not required for ordinary camera edits.
 
 ## Code map
 
@@ -39,8 +39,8 @@ Online API documentation can describe newer releases. For ABI-sensitive changes,
 - Keep existing naming consistent: animated_mojang namespaces, PascalCase types and camelCase functions. Avoid a mass rename of the existing my_mod/MyMod entry point during unrelated work.
 - Keep pure scene math and state transitions separate from native hooks so they remain testable without running Minecraft.
 - Use RAII for modified control alpha, shader color, clipping, matrix stacks and screen setup/cleanup. Restore native state on every exit path.
-- Match hooked function signatures to the pinned SDK. Normal hook priority is the default; preserve origin calls and the active/config guards.
-- Keep hooks and input listeners owned by the existing lifecycle. stop() must disable interception, remove listeners/hooks and clear live native handles. Startup-specific hooks are installed early by design to catch loading-bar initialization; do not add world-dependent operations to load().
+- Match hooked function signatures to the resolved SDK. Normal hook priority is the default; preserve origin calls and the active/config guards.
+- Keep hooks and input listeners owned by the existing lifecycle. stop() must disable interception, remove listeners/hooks and clear live native handles. Startup hooks are installed early so frame and JSON loading-screen callbacks can queue textures when a texture group becomes available. Do not add world-dependent operations to load().
 - Runtime state is guarded by its recursive mutex. Frame scope is thread-local; do not turn temporary background flags into persistent global state. Retain weak ownership for texture groups and renderer services.
 - Treat a missing/unfinished texture during asynchronous loading as normal. Preserve AssetRefresh retries and the readiness gate rather than caching a placeholder forever.
 - Release logging should contain the version message and actionable errors/warnings. Do not restore automatic preload, camera, frame-gap or five-second performance logs. debugScreens is an explicit, disabled-by-default page-name diagnostic. Remove temporary investigation counters after use.
@@ -95,7 +95,7 @@ Use tools/fetch-assets.mjs for pinned upstream sources. Do not silently move the
 - Mesh format is AMCV0005: a 24-byte header and 36-byte vertices, including a uint32 texture field. Preserve MeshVertex layout or version the format and update its loader/tests together.
 - Particle format is AMCP0001. Its emitter/occlusion data must stay consistent with the source cave.
 - Preserve source opacity, atlas insets, lava frame selection and rail state mapping. Flat rails require both straight orientations and four corner orientations; validate source-pixel exits and reciprocal neighboring connections.
-- Add new runtime files to both xmake.lua and package-release.ps1. Keep NOTICE.md provenance current. Do not package AGENTS.md, vibe_development, PDBs, tests or source-only assets.
+- Add new runtime files to both xmake.lua and package-release.ps1. Keep NOTICE.md provenance current. Release archives contain runtime files and configuration plus only NOTICE.md, COPYING.LESSER and COPYING.txt as documentation. Exclude READMEs, CHANGELOG.md, the legacy CC0 LICENSE file, AGENTS.md, vibe_development, PDBs, tests and source-only assets; keep the repository documentation available in source control.
 
 ## Validation
 
@@ -109,12 +109,12 @@ For rendering or hook changes, build the client DLL and verify the changed behav
 
 Publish only when the user requests a release. Do not request repeat permission when it is already authorized.
 
-1. Use the Playback-style X.Y.Z-mcA.B convention: X.Y.Z is the feature version and A.B is the Minecraft compatibility family (currently 26.51). The suffix is a compatibility label; keep the GitHub release non-prerelease unless the user requests an experimental release. Pin the complete version in lip install examples, since unqualified semver selection can omit suffixed versions. Update xmake.lua modVersion, tooth.json version and the MyMod.cpp version message together; update both READMEs. Do not change the config schema solely because the release version changes.
+1. Use the version specified by the maintainer, currently `1.1.0`. Keep the GitHub release non-prerelease unless the user requests an experimental release. Pin the complete version in lip install examples. Update xmake.lua modVersion, tooth.json version, and the MyMod.cpp version message together, and update both READMEs. Do not change the config schema solely because the release version changes.
 2. Add a dated Keep a Changelog entry, with Added/Changed/Fixed/Removed sections as applicable. Keep known limitations accurate.
-3. Keep tooth.json format_version=3 and its official format_uuid. This mod has only the client / win-x64 variant, pinned github.com/LiteLDev/LeviLamina#client dependency, and AnimatedMojang/ -> mods/AnimatedMojang/ placement. Preserve the config file.
+3. Keep tooth.json format_version=3 and its official format_uuid. This mod has only the client / win-x64 variant, the github.com/LiteLDev/LeviLamina#client dependency, and AnimatedMojang/ -> mods/AnimatedMojang/ placement. Preserve the config file.
 4. Validate metadata, build and run the relevant regressions. Package using tools/package-release.ps1; it checks archive contents against the explicit file list.
 5. Commit the source, derived assets and documentation; push the intended branch without force. Never commit credentials, local capture data, package caches or bin/build outputs.
-6. Create an annotated **vX.Y.Z-mcA.B** tag on the release commit and push it. Do not move a published release tag to a different commit.
+6. Create an annotated tag matching tooth.json with a `v` prefix on the release commit and push it. Do not move a published release tag to a different commit.
 7. Create the GitHub Release for that tag. The published-release workflow checks the version, builds/tests/packages and writes the version's Changelog notes to the release. It preserves already uploaded assets with the same filename.
 8. Ensure the release includes **Animated-Mojang-client-windows-x64.zip**, the filename referenced by tooth.json. An additional versioned ZIP is a convenience copy. Upload verified files before marking a draft public when using manual publication.
 9. Verify the published tag's tooth.json, asset download and package hash. The package is distributed through Git/lip; Bedrinth/LeviLauncher catalog indexing is external and may lag. Do not claim listing success without checking it.

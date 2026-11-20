@@ -14,9 +14,7 @@
 #include "ll/api/event/EventBus.h"
 #include "ll/api/event/input/KeyInputEvent.h"
 #include "ll/api/memory/Hook.h"
-#include "mc/client/game/MinecraftGame.h"
 #include "mc/client/game/IClientInstance.h"
-#include "mc/client/game/SerialWorkList.h"
 #include "mc/client/gui/ScreenRenderer.h"
 #include "mc/client/gui/ScreenTechStackSelector.h"
 #include "mc/client/gui/controls/UIControl.h"
@@ -38,7 +36,6 @@
 #include "mc/client/gui/screens/controllers/StartMenuScreenController.h"
 #include "mc/client/renderer/TextureGroup.h"
 #include "mc/client/options/IOptionRegistry.h"
-#include "mc/client/sound/MusicManager.h"
 #include "mc/client/sound/SoundEngine.h"
 #include "mc/client/renderer/game/GameRenderer.h"
 #include "mc/client/renderer/screen/MinecraftUIRenderContext.h"
@@ -51,6 +48,7 @@
 #include "mc/deps/core/resource/ResourceFileSystem.h"
 #include "mc/deps/core/resource/ResourceLocation.h"
 #include "mc/deps/core/string/HashedString.h"
+#include "mc/deps/core/utility/NonOwnerPointer.h"
 #include "mc/deps/input/RectangleArea.h"
 #include "mc/deps/minecraft_renderer/renderer/BedrockTextureData.h"
 #include "mc/deps/minecraft_renderer/renderer/IsMissingTexture.h"
@@ -91,7 +89,8 @@ struct Runtime {
     std::vector<std::unique_ptr<mce::TexturePtr>> introTextures;
     std::array<scene::AssetRefresh, 3>             introRefresh;
     std::string  startupSound; // Kept alive for the session: the engine may stream from this buffer.
-    SoundEngine* soundEngine  = nullptr;
+    Bedrock::NonOwnerPointer<SoundEngine> soundEngine;
+    Bedrock::NonOwnerPointer<SoundEngine> pausedMusicEngine;
     uint64       soundHandle  = 0;
     bool         soundPending = false, soundFaded = false, soundPlaying = false, userSkipped = false, fadeSound = false;
     bool         cardBackdrop = false; // The opening plane shows the Mojang card instead of the loading picture.
@@ -101,7 +100,6 @@ struct Runtime {
 Runtime                        runtime;
 std::atomic_bool               active = false, skipRequested = false;
 std::atomic_bool               skipAllowed = false;
-std::atomic_bool               holdMusic = false, startMusic = false;
 std::atomic<ScreenView*>       blockedView    = nullptr;
 std::atomic<ScreenController*> menuController = nullptr;
 ll::event::ListenerPtr         keyListener;
@@ -343,10 +341,6 @@ void updatePresentation(double time, bool foregroundMenu, bool assetsReady) {
         && runtime.config.mojangCardDive && runtime.config.caveBackground && runtime.config.minecraftTitleAnimation)
         useCardBackdrop(true);
     if (!runtime.introFrame.active && !runtime.intro.started()) useCardBackdrop(false);
-    // Like the original, menu music waits for the logo (and for a longer soundtrack to finish), then starts at once.
-    const bool holding = runtime.config.holdMenuMusic
-                      && ((runtime.introFrame.active && !runtime.introFrame.released) || runtime.soundPlaying);
-    if (holdMusic.exchange(holding) && !holding) startMusic.store(true);
     const bool introDone = !introEnabled || runtime.introFrame.released;
     runtime.frame = runtime.timeline.update(time, foregroundMenu && introDone, ready,
         runtime.config.minecraftTitleAnimation);
@@ -368,12 +362,9 @@ void updateStartupSound(IClientInstance& client) {
     if (runtime.soundPending) {
         runtime.soundPending = false;
         bool started         = false;
-        if (!runtime.startupSound.empty() && client.getMinecraftGame_DEPRECATED().isAudioInitialized()) {
-            auto* engine        = client.getSoundEngine().get().get();
-            runtime.soundEngine = engine;
-            // Like the original, keep menu music from playing over the startup sound (a hard stop: a fade would
-            // linger on the music restarted for the flight).
-            if (runtime.config.holdMenuMusic) engine->stopMusic();
+        if (!runtime.startupSound.empty() && client.getMinecraftGame_DEPRECATED().isAudioInitialized())
+            runtime.soundEngine = client.getSoundEngine().get();
+        if (auto* engine = runtime.soundEngine.get()) {
             runtime.soundHandle = engine->playFromMemory(
                 Core::Path{"animated_mojang.startup"},
                 runtime.startupSound.data(),
@@ -398,6 +389,18 @@ void updateStartupSound(IClientInstance& client) {
     }
     runtime.soundPlaying = runtime.soundEngine && runtime.soundHandle && !runtime.soundFaded
                         && runtime.soundEngine->isPlayingSound(runtime.soundHandle);
+}
+
+void updateMenuMusic(IClientInstance& client) {
+    if (!runtime.config.holdMenuMusic) return;
+    const bool holding = (runtime.introFrame.active && !runtime.introFrame.released) || runtime.soundPlaying;
+    if (holding && !runtime.pausedMusicEngine && client.getMinecraftGame_DEPRECATED().isAudioInitialized()) {
+        runtime.pausedMusicEngine = client.getSoundEngine().get();
+        if (runtime.pausedMusicEngine) runtime.pausedMusicEngine->pauseMusic(true);
+    } else if (!holding && runtime.pausedMusicEngine) {
+        runtime.pausedMusicEngine->pauseMusic(false);
+        runtime.pausedMusicEngine = {};
+    }
 }
 void fill(
     MinecraftUIRenderContext& ctx,
@@ -515,34 +518,6 @@ LL_TYPE_INSTANCE_HOOK(DestroyScreen, HookPriority::Normal, ScreenView, &ScreenVi
     if (menuController.load() == mController.get()) menuController.store(nullptr);
     origin();
 }
-LL_TYPE_INSTANCE_HOOK(
-    PreloadAtLoadingBar,
-    HookPriority::Normal,
-    MinecraftGame,
-    &MinecraftGame::_initLoadingBarMaterials,
-    SerialWorkList::WorkResult
-) {
-    auto result = origin();
-    if (active.load()) {
-        std::lock_guard guard(runtime.mutex);
-        queueTextures(getTextureGroup());
-    }
-    return result;
-}
-LL_TYPE_INSTANCE_HOOK(
-    PreloadAtMenuResources,
-    HookPriority::Normal,
-    MinecraftGame,
-    &MinecraftGame::_initWaitForMainMenuResources,
-    SerialWorkList::WorkResult
-) {
-    if (active.load()) {
-        std::lock_guard guard(runtime.mutex);
-        queueTextures(getTextureGroup());
-    }
-    return origin();
-}
-
 void observeScreenExit(AbstractScene const& screen, bool popping) {
     if (!active.load()) return;
     std::lock_guard guard(runtime.mutex);
@@ -591,6 +566,7 @@ LL_TYPE_INSTANCE_HOOK(
         auto* client = mClient.get().get();
         if (!client) client = mPrimaryClient.get().get();
         if (client) {
+            if (!runtime.enteredMenu && runtime.textureGroup.expired()) queueTextures(client->getTextureGroup());
             const auto current = client->getCurrentSceneStack().get();
             const auto main = client->getMainSceneStack().get();
             // Remove stale identities without retaining or dereferencing destroyed scenes.
@@ -616,7 +592,10 @@ LL_TYPE_INSTANCE_HOOK(
         updatePresentation(time, page == scene::CavePage::Main, titleReady && introTexturesReady());
         updateCamera(time, page);
         backgroundFrame.presentationUpdated = true;
-        if (client) updateStartupSound(*client);
+        if (client) {
+            updateStartupSound(*client);
+            updateMenuMusic(*client);
+        }
     }
     origin(interpolation);
 }
@@ -803,32 +782,6 @@ LL_TYPE_INSTANCE_HOOK(
     origin(ctx, client, owner, layer);
 }
 LL_TYPE_INSTANCE_HOOK(
-    HoldMenuMusic,
-    HookPriority::Normal,
-    MusicManager,
-    &MusicManager::update,
-    void,
-    LocalPlayer const* player,
-    bool               isCreditsScreen,
-    bool               isLoadingProgressScreen
-) {
-    if (active.load() && holdMusic.load()) return;
-    if (active.load() && startMusic.load()) {
-        // The manager first drops the track it still believes is playing, then picks a new one after a random
-        // delay; skip that delay until a track has started again.
-        static int forced = 0;
-        const bool stale  = mCurrentMusic->get() != nullptr;
-        mNextSongDelay    = 0;
-        origin(player, isCreditsScreen, isLoadingProgressScreen);
-        if ((!stale && mCurrentMusic->get()) || ++forced > 120) {
-            startMusic.store(false);
-            forced = 0;
-        }
-        return;
-    }
-    origin(player, isCreditsScreen, isLoadingProgressScreen);
-}
-LL_TYPE_INSTANCE_HOOK(
     MenuButton,
     HookPriority::Normal,
     ScreenView,
@@ -845,8 +798,6 @@ using Hooks = ll::memory::HookRegistrar<
     MenuOpened,
     SelectMenuTech,
     DestroyScreen,
-    PreloadAtLoadingBar,
-    PreloadAtMenuResources,
     BaseScreenExit,
     JsonScreenExit,
     WebScreenExit,
@@ -856,7 +807,6 @@ using Hooks = ll::memory::HookRegistrar<
     DrawPanorama,
     DrawPaperDoll,
     DrawProgress,
-    HoldMenuMusic,
     MenuButton>;
 std::unique_ptr<Hooks> hooks;
 } // namespace
@@ -918,7 +868,8 @@ void start(Config const& config, std::filesystem::path const& modDirectory) {
         runtime.introTextures.clear();
         runtime.introRefresh = {};
         runtime.introFrame   = {};
-        runtime.soundEngine  = nullptr;
+        runtime.soundEngine = {};
+        runtime.pausedMusicEngine = {};
         runtime.soundHandle  = 0;
         runtime.soundPending = runtime.soundFaded = runtime.soundPlaying = runtime.userSkipped = runtime.fadeSound = false;
         runtime.cardBackdrop    = false;
@@ -954,14 +905,14 @@ void stop() {
     menuController.store(nullptr);
     skipRequested.store(false);
     skipAllowed.store(false);
-    holdMusic.store(false);
-    startMusic.store(false);
     if (keyListener) ll::event::EventBus::getInstance().removeListener<ll::event::KeyInputEvent>(keyListener);
     keyListener.reset();
     hooks.reset();
     std::lock_guard guard(runtime.mutex);
     if (runtime.soundEngine && runtime.soundHandle) runtime.soundEngine->stop(runtime.soundHandle);
-    runtime.soundEngine = nullptr;
+    if (runtime.pausedMusicEngine) runtime.pausedMusicEngine->pauseMusic(false);
+    runtime.pausedMusicEngine = {};
+    runtime.soundEngine = {};
     runtime.soundHandle = 0;
     runtime.textures.clear();
     runtime.introTextures.clear();

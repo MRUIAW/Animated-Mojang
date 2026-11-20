@@ -9,18 +9,18 @@ A LeviLamina client mod that brings an animated Minecraft title, a 3D cave backg
 
 | Component | Supported version |
 | --- | --- |
-| Minecraft Bedrock for Windows | 1.26.51.01 |
-| LeviLamina | 26.51.6, client variant |
+| Minecraft Bedrock for Windows | 1.26.60.05 |
+| LeviLamina client dependency | `>=26.60.7 <26.61.0` |
 | Platform | Windows x64 |
-| Mod | 1.0.0-mc26.51 |
+| Mod | 1.1.0 |
 
-The `-mc26.51` suffix identifies the compatible Minecraft version family, following Playback's version convention. The feature version is 1.0.0. This is a client mod; other game or loader versions have not been verified.
+This build targets the client versions listed above.
 
 ## Features
 
 - A 3D cave with baked colored lighting, animated flowing lava, wall-mounted soul torches, and flame/smoke particles.
 - A flight from a loading-screen image into the cave, synchronized with the title animation and menu fade. Press **Esc** to skip.
-- The original mod's Mojang Studios intro after loading: the animated Mojang logo, the STUDIOS fade-in and the startup sound, synchronized like the original; the flight then dives past the finished Mojang card into the cave. Menu music waits for the logo and starts with the flight. Esc skips both.
+- The original mod's Mojang Studios intro after loading: the animated Mojang logo, the STUDIOS fade-in and the startup sound, synchronized like the original; the flight then dives past the finished Mojang card into the cave. Esc skips both.
 - Camera views and transitions for the main menu, world list, settings, dressing room, Realms, and Marketplace.
 - Resource preloading and reused scene buffers. After a rendering stall, animations resume without jumping over the entire stalled interval.
 - The game's built-in JSON main menu is selected by default for title and control animations. No separate resource pack activation is required.
@@ -34,7 +34,7 @@ Close the game before installing or updating.
 Run this in the game installation directory managed by LeviLamina/lip:
 
 ```powershell
-lip install "github.com/MRUIAW/Animated-Mojang#client@1.0.0-mc26.51"
+lip install "github.com/MRUIAW/Animated-Mojang#client@1.1.0"
 ```
 
 The client dependency is declared in [tooth.json](https://github.com/MRUIAW/Animated-Mojang/blob/main/tooth.json). You can also install the client variant through LeviLauncher when the package is listed.
@@ -63,7 +63,7 @@ Edit **mods/AnimatedMojang/config/config.json** and restart the game. The config
 | mojangLogoAnimation | true | Play the Mojang Studios intro after loading |
 | mojangFadeIn | true | Fade the intro in over the loading screen instead of cutting to it |
 | mojangCardDive | true | Fly past the finished Mojang card into the cave (needs caveBackground and minecraftTitleAnimation); otherwise the intro fades out over the flight |
-| holdMenuMusic | true | Hold menu music during the intro and its sound, then start it at once |
+| holdMenuMusic | true | Pause menu music during the intro and its sound, then resume normal playback |
 | startupSound | true | Play the startup sound with the Mojang intro |
 | startupSoundFile | startup.ogg | Sound file in resources/sounds/animated_mojang/ |
 | startupSoundVolume | 1.0 | Startup sound volume, further scaled by the game's main and sound volume; clamped to 0–1 |
@@ -89,7 +89,7 @@ Routine resource, camera, frame-gap and periodic performance diagnostics are rem
 
 ## Building
 
-Requires the Visual Studio C++ toolchain, Windows SDK, LLVM clang-cl, xmake, Node.js, and PowerShell. LeviLamina is pinned in xmake.lua.
+Requires the Visual Studio C++ toolchain, Windows SDK, LLVM clang-cl with C++23 support, xmake, Node.js, and PowerShell. The build SDK in xmake.lua is pinned to LeviLamina 26.60.7.
 
 ```powershell
 node tools/fetch-assets.mjs --verify-only
@@ -111,10 +111,10 @@ node tests/cave_camera_path_tests.mjs
 
 Run tools/fetch-assets.mjs without --verify-only to restore missing pinned upstream assets. The scene builders regenerate their respective derived files when run without that flag.
 
-Build output is in **bin/AnimatedMojang**. Release ZIPs include runtime files, configuration, both READMEs, the changelog, and license/provenance notices. Development notes, source assets, tests, and debug symbols are excluded.
+Build output is in **bin/AnimatedMojang**. Release ZIPs include runtime files, configuration, NOTICE.md, COPYING.LESSER, and COPYING.txt. READMEs, the changelog, the legacy CC0 LICENSE file, development notes, source assets, tests, and debug symbols are excluded.
 
 ## Maintenance and credits
 
 See [AGENTS.md](https://github.com/MRUIAW/Animated-Mojang/blob/main/AGENTS.md) for architecture, coding rules, camera extension instructions, validation, and release procedures. The two foundational analyses in vibe_development are source-repository references only.
 
-See [CHANGELOG.md](CHANGELOG.md), [NOTICE.md](NOTICE.md), and [LICENSE](LICENSE). The repository uses CC0 1.0; NOTICE describes upstream and game asset provenance. Minecraft and Mojang belong to their respective owners. This is an unofficial project.
+See [CHANGELOG.md](CHANGELOG.md), [NOTICE.md](NOTICE.md), and the license texts [COPYING.LESSER](COPYING.LESSER) and [COPYING.txt](COPYING.txt). NOTICE describes upstream and game asset provenance. Minecraft and Mojang belong to their respective owners. This is an unofficial project.

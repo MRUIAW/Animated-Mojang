@@ -45,7 +45,7 @@ bool MyMod::load() {
     animated_mojang::client::start(mConfig, getSelf().getModDir());
     if (mConfig.enabled && mConfig.caveBackground)
         animated_mojang::client::prepareCave(getSelf().getModDir());
-    getSelf().getLogger().info("Animated Mojang 1.0.0-mc26.51 loaded for Bedrock 26.51 / LL 26.51.6 (client).");
+    getSelf().getLogger().info("Animated Mojang 1.1.0 loaded for Bedrock 1.26.60.05 / LL 26.60.7 (client).");
     return true;
 }
 

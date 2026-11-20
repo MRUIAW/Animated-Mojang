@@ -13,7 +13,8 @@ if ($manifest.version -ne $Version -or $manifest.platform -ne 'client' -or $mani
     throw 'Build manifest does not match the requested client release. Rebuild first.'
 }
 
-# An explicit list prevents development notes, PDBs and source assets entering a release.
+# Documentation in releases is limited to NOTICE.md and the two current license files.
+# The explicit list also excludes legacy LICENSE, READMEs, changelogs, PDBs and source assets.
 $files = @(
     'AnimatedMojang.dll', 'manifest.json', 'config/config.json',
     'resources/data/normal_cave.mesh', 'resources/data/normal_cave.particles',
@@ -23,7 +24,7 @@ $files = @(
     'resources/textures/animated_mojang/intro/mojang_animation.png',
     'resources/textures/animated_mojang/intro/studios.png',
     'resources/textures/animated_mojang/intro/mojang_card.png',
-    'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'NOTICE.md', 'LICENSE'
+    'NOTICE.md', 'COPYING.LESSER', 'COPYING.txt'
 )
 $files += 0..8 | ForEach-Object { "resources/textures/animated_mojang/title/minecraft_animation/minecraft_$_.png" }
 foreach ($file in $files) {

@@ -8,7 +8,7 @@ option("target_type")
     set_values("client")
 option_end()
 
-add_requires("levilamina 26.51.6", {configs = {target_type = "client"}})
+add_requires("levilamina 26.60.7", {configs = {target_type = "client"}})
 
 add_requires("levibuildscript 0.6.1")
 
@@ -18,7 +18,7 @@ end
 
 target("AnimatedMojang")
     add_rules("@levibuildscript/linkrule")
-    add_rules("@levibuildscript/modpacker", {modName = "AnimatedMojang", modVersion = "1.0.0-mc26.51", modPlatform = "client"})
+    add_rules("@levibuildscript/modpacker", {modName = "AnimatedMojang", modVersion = "1.1.0", modPlatform = "client"})
     if is_plat("windows") then
         add_defines("NOMINMAX", "UNICODE")
         set_exceptions("none") -- To avoid conflicts with /EHa.
@@ -40,13 +40,18 @@ target("AnimatedMojang")
     end
     add_packages("levilamina")
     set_kind("shared")
-    set_languages("c++20")
+    set_languages("c++23")
     set_symbols("debug")
     add_headerfiles("src/**.h")
     add_files("src/**.cpp")
     add_includedirs("src")
     after_build(function(target)
         local outputdir = path.join(os.projectdir(), "bin", "AnimatedMojang")
+        -- Remove files left by earlier builds before copying the current allowlist.
+        for _, file in ipairs({"LICENSE", "README.md", "README.zh-CN.md", "CHANGELOG.md"}) do
+            local obsolete = path.join(outputdir, file)
+            if os.isfile(obsolete) then os.rm(obsolete) end
+        end
         -- Copy runtime assets only; source assets and development notes stay in the repository.
         local runtimefiles = {
             "config/config.json",
@@ -58,7 +63,7 @@ target("AnimatedMojang")
             "resources/textures/animated_mojang/intro/mojang_animation.png",
             "resources/textures/animated_mojang/intro/studios.png",
             "resources/textures/animated_mojang/intro/mojang_card.png",
-            "NOTICE.md", "LICENSE", "README.md", "README.zh-CN.md", "CHANGELOG.md"
+            "NOTICE.md", "COPYING.LESSER", "COPYING.txt"
         }
         for index = 0, 8 do
             table.insert(runtimefiles, "resources/textures/animated_mojang/title/minecraft_animation/minecraft_" .. index .. ".png")
@@ -72,7 +77,7 @@ target("AnimatedMojang")
 target("TimelineTests")
     set_default(false)
     set_kind("binary")
-    set_languages("c++20")
+    set_languages("c++23")
     set_toolchains("clang-cl")
     add_files("tests/timeline_tests.cpp")
     add_includedirs("src")
@@ -82,7 +87,7 @@ target("TimelineTests")
 target("CpuSceneTests")
     set_default(false)
     set_kind("binary")
-    set_languages("c++20")
+    set_languages("c++23")
     set_toolchains("clang-cl")
     add_packages("levilamina")
     add_files("tests/cpu_scene_tests.cpp")
@@ -93,7 +98,7 @@ target("CaveSceneTests")
     set_default(false)
     set_kind("binary")
     set_rundir("$(projectdir)")
-    set_languages("c++20")
+    set_languages("c++23")
     set_toolchains("clang-cl")
     add_packages("levilamina")
     add_files("tests/cave_scene_tests.cpp")
@@ -103,7 +108,7 @@ target("CaveSceneTests")
 target("CaveParticleTests")
     set_default(false)
     set_kind("binary")
-    set_languages("c++20")
+    set_languages("c++23")
     set_toolchains("clang-cl")
     add_packages("levilamina")
     add_files("tests/cave_particle_tests.cpp")
@@ -114,7 +119,7 @@ target("CaveParticleTests")
 target("CaveOcclusionTests")
     set_default(false)
     set_kind("binary")
-    set_languages("c++20")
+    set_languages("c++23")
     set_toolchains("clang-cl")
     add_packages("levilamina")
     add_files("tests/cave_occlusion_tests.cpp")
@@ -125,7 +130,7 @@ target("CaveOcclusionTests")
 target("CaveCameraTests")
     set_default(false)
     set_kind("binary")
-    set_languages("c++20")
+    set_languages("c++23")
     set_toolchains("clang-cl")
     add_packages("levilamina")
     add_files("tests/cave_camera_tests.cpp")

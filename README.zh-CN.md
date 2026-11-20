@@ -9,18 +9,18 @@
 
 | 组件 | 支持版本 |
 | --- | --- |
-| Windows Minecraft 基岩版 | 1.26.51.01 |
-| LeviLamina | 26.51.6，客户端变体 |
+| Windows Minecraft 基岩版 | 1.26.60.05 |
+| LeviLamina 客户端安装依赖 | `>=26.60.7 <26.61.0` |
 | 平台 | Windows x64 |
-| 模组 | 1.0.0-mc26.51 |
+| 模组 | 1.1.0 |
 
-沿用 Playback 的版本命名方式，`-mc26.51` 表示兼容的 Minecraft 版本系列，功能版本为 1.0.0。本模组仅用于客户端，其他游戏或加载器版本尚未验证。
+此构建面向上表所列的客户端版本。
 
 ## 功能
 
 - 三维洞穴，包含烘焙彩色光照、动态流动岩浆、墙上灵魂火把，以及火焰和烟雾粒子。
 - 从加载界面图片飞入洞穴，与标题动画及菜单渐显同步；按 **Esc** 跳过。
-- 加载完成后播放原模组的 Mojang Studios 开场：Mojang 标志动画、STUDIOS 渐显和启动音效，同步方式与原模组一致；随后镜头掠过完成的 Mojang 画面飞入洞穴。菜单音乐等待标志播放完，随镜头飞行开始。按 Esc 一并跳过。
+- 加载完成后播放原模组的 Mojang Studios 开场：Mojang 标志动画、STUDIOS 渐显和启动音效，同步方式与原模组一致；随后镜头掠过完成的 Mojang 画面飞入洞穴。按 Esc 一并跳过。
 - 主菜单、世界列表、设置、更衣室、Realms 和市场各有相机视角及切换动画。
 - 预读资源、复用场景缓存；渲染卡顿后继续播放，避免直接跳过整个停顿区间。
 - 默认选择游戏内置 JSON 主菜单来实现标题和控件动画；无需额外启用资源包。
@@ -34,7 +34,7 @@
 在由 LeviLamina/lip 管理的游戏安装目录执行：
 
 ```powershell
-lip install "github.com/MRUIAW/Animated-Mojang#client@1.0.0-mc26.51"
+lip install "github.com/MRUIAW/Animated-Mojang#client@1.1.0"
 ```
 
 客户端依赖已写入 [tooth.json](https://github.com/MRUIAW/Animated-Mojang/blob/main/tooth.json)。模组被收录后，也可通过 LeviLauncher 选择客户端变体安装。
@@ -63,7 +63,7 @@ lip install "github.com/MRUIAW/Animated-Mojang#client@1.0.0-mc26.51"
 | mojangLogoAnimation | true | 加载完成后播放 Mojang Studios 开场 |
 | mojangFadeIn | true | 开场在加载界面上渐显，而不是直接切换 |
 | mojangCardDive | true | 镜头掠过完成的 Mojang 画面飞入洞穴（需开启 caveBackground 和 minecraftTitleAnimation）；否则开场在飞行开始时淡出 |
-| holdMenuMusic | true | 开场及其音效期间暂缓菜单音乐，结束后立即开始 |
+| holdMenuMusic | true | 开场及其音效期间暂停菜单音乐，随后恢复正常播放 |
 | startupSound | true | Mojang 开场时播放启动音效 |
 | startupSoundFile | startup.ogg | resources/sounds/animated_mojang/ 中的音效文件 |
 | startupSoundVolume | 1.0 | 启动音效音量，另按游戏主音量和音效音量缩放；限制在 0–1 |
@@ -89,7 +89,7 @@ lip install "github.com/MRUIAW/Animated-Mojang#client@1.0.0-mc26.51"
 
 ## 构建
 
-需要 Visual Studio C++ 工具链、Windows SDK、LLVM clang-cl、xmake、Node.js 和 PowerShell。xmake.lua 已固定 LeviLamina 版本。
+需要 Visual Studio C++ 工具链、Windows SDK、支持 C++23 的 LLVM clang-cl、xmake、Node.js 和 PowerShell。xmake.lua 的编译 SDK 固定为 LeviLamina 26.60.7。
 
 ```powershell
 node tools/fetch-assets.mjs --verify-only
@@ -111,10 +111,10 @@ node tests/cave_camera_path_tests.mjs
 
 不带 --verify-only 运行 tools/fetch-assets.mjs 可补回固定上游素材；各场景生成工具不带该参数时重新生成对应派生资源。
 
-构建产物在 **bin/AnimatedMojang**。安装包包含运行文件、配置、双语 README、更新记录和许可及来源说明，排除开发文档、素材源文件、测试和调试符号。
+构建产物在 **bin/AnimatedMojang**。安装包包含运行文件、配置、NOTICE.md、COPYING.LESSER 和 COPYING.txt，排除 README、Changelog、旧 CC0 LICENSE 文件、开发文档、素材源文件、测试和调试符号。
 
 ## 维护与来源
 
 后续维护请阅读 [AGENTS.md](https://github.com/MRUIAW/Animated-Mojang/blob/main/AGENTS.md)，其中说明架构、编程规范、新增运镜、验证与发布步骤。vibe_development 中的两份基础分析仅作为源码仓库参考。
 
-更新记录见 [CHANGELOG.md](CHANGELOG.md)，素材来源见 [NOTICE.md](NOTICE.md)，许可见 [LICENSE](LICENSE)。仓库采用 CC0 1.0；上游及游戏素材来源在 NOTICE 中单独说明。Minecraft 和 Mojang 的名称、标识属于各自权利人，本项目为非官方模组。
+更新记录见 [CHANGELOG.md](CHANGELOG.md)，素材来源见 [NOTICE.md](NOTICE.md)，许可文本见 [COPYING.LESSER](COPYING.LESSER) 和 [COPYING.txt](COPYING.txt)。上游及游戏素材来源在 NOTICE 中单独说明。Minecraft 和 Mojang 的名称、标识属于各自权利人，本项目为非官方模组。
