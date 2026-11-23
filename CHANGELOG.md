@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-23
+
 ### Added
 
 - The original mod's Mojang Studios intro after loading: 79-frame Mojang logo, STUDIOS fade-in and the startup sound, with the original's sound synchronization (the logo holds at 350 ms until the sound starts, with an 8 s fallback). It fades in over the loading picture and fades out into the flight in that picture's place.
@@ -16,7 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- Target Minecraft Bedrock 1.26.60.05, build with LeviLamina 26.60.7, and declare the client package dependency as `>=26.60.7 <26.61.0`. The mod version is 1.1.0.
+- Target Minecraft Bedrock 1.26.60.05, build with LeviLamina 26.60.7, and migrate package metadata from `tooth.json` to `lip.toml` (format 4) using the default `""` client variant (`side = "client"`) and bare `github.com/LiteLDev/LeviLamina` dependency `>=26.60.8 <26.61.0`. The mod version is 1.1.0 (release tag `v1.1.0`).
 - Preload textures from the frame renderer and JSON loading screen using the texture group available in Bedrock 1.26.60.05.
 - Pause and resume menu music through the sound engine during the intro and startup sound.
 - Limit packaged documentation to NOTICE.md, COPYING.LESSER and COPYING.txt; exclude READMEs, the changelog and the legacy CC0 LICENSE file, and remove their stale copies from build output.
@@ -24,6 +26,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Align the release tag (`v1.1.0`) with `lip.toml` `version` (`1.1.0`) so `lip install` resolves the release asset URL without a 404.
 - Copy the current COPYING.LESSER and COPYING.txt license files during build and packaging instead of the removed LICENSE file.
 
 ## [1.0.0-mc26.51] - 2026-10-04
@@ -54,5 +57,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 See [README.md](https://github.com/MRUIAW/Animated-Mojang/blob/v1.0.0-mc26.51/README.md#known-limitations) for outstanding rendering details and validation limits. Native UI stalls are not claimed to be fixed.
 
-[Unreleased]: https://github.com/MRUIAW/Animated-Mojang/compare/v1.0.0-mc26.51...HEAD
+[Unreleased]: https://github.com/MRUIAW/Animated-Mojang/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/MRUIAW/Animated-Mojang/compare/v1.0.0-mc26.51...v1.1.0
 [1.0.0-mc26.51]: https://github.com/MRUIAW/Animated-Mojang/releases/tag/v1.0.0-mc26.51

@@ -4,19 +4,22 @@ version = "1.1.0"
 
 [info]
 name = "Animated Mojang"
-description = "Animated Minecraft title, 3D cave background and menu camera transitions for Bedrock 1.26.60.05 / LeviLamina 26.60 client (26.60.7 or later)."
+description = "Animated Minecraft title, 3D cave background and menu camera transitions for Bedrock 1.26.60.05 / LeviLamina 26.60 client (26.60.8 or later)."
 tags = ["platform:levilamina", "type:mod", "platform:client"]
 logo = "https://raw.githubusercontent.com/MRUIAW/Animated-Mojang/refs/heads/main/resources/pack_icon.png"
 
-[[variants.client]]
+[[variants.""]]
 side = "client"
 platform = "win-x64"
 preserve = ["mods/AnimatedMojang/config/config.json"]
 
-[variants.client.deps]
-"github.com/LiteLDev/LeviLamina#client" = ">=26.60.7 <26.61.0"
+[variants."".deps]
+# The bare id, not "#client": a lip.toml dependency is never rewritten, and lip.toml releases of
+# LeviLamina have no "client" variant. The range starts at 26.60.8, the first lip.toml release,
+# because the "" variant of earlier tooth.json releases (<=26.60.7) is the server build.
+"github.com/LiteLDev/LeviLamina" = ">=26.60.8 <26.61.0"
 
-[[variants.client.assets]]
+[[variants."".assets]]
 type = "zip"
 urls = ["https://{{id}}/releases/download/v{{version}}/Animated-Mojang-client-windows-x64.zip"]
 place = [{ src = "AnimatedMojang/", dest = "mods/AnimatedMojang/" }]

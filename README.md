@@ -10,7 +10,7 @@ A LeviLamina client mod that brings an animated Minecraft title, a 3D cave backg
 | Component | Supported version |
 | --- | --- |
 | Minecraft Bedrock for Windows | 1.26.60.05 |
-| LeviLamina client dependency | `>=26.60.7 <26.61.0` |
+| LeviLamina client dependency | `>=26.60.8 <26.61.0` |
 | Platform | Windows x64 |
 | Mod | 1.1.0 |
 
@@ -34,10 +34,10 @@ Close the game before installing or updating.
 Run this in the game installation directory managed by LeviLamina/lip:
 
 ```powershell
-lip install "github.com/MRUIAW/Animated-Mojang#client@1.1.0"
+lip install github.com/MRUIAW/Animated-Mojang@1.1.0
 ```
 
-The client dependency is declared in [tooth.json](https://github.com/MRUIAW/Animated-Mojang/blob/main/tooth.json). You can also install the client variant through LeviLauncher when the package is listed.
+The client dependency is declared in [lip.toml](https://github.com/MRUIAW/Animated-Mojang/blob/main/lip.toml). You can also install the mod through LeviLauncher when the package is listed.
 
 ### Manual installation
 

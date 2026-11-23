@@ -15,8 +15,9 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          $tooth = Get-Content tooth.json -Raw | ConvertFrom-Json
-          if ($env:RELEASE_TAG -ne "v$($tooth.version)") { throw 'Release tag must match tooth.json version.' }
+          $lipToml = Get-Content lip.toml -Raw
+          if ($lipToml -notmatch '(?m)^version\s*=\s*"([^"]+)"') { throw 'Could not find version in lip.toml.' }
+          if ($env:RELEASE_TAG -ne "v$($Matches[1])") { throw 'Release tag must match lip.toml version.' }
       - id: notes
         uses: ffurrer2/extract-release-notes@v3
       - uses: actions/setup-node@v7

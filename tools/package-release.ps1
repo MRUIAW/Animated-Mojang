@@ -3,10 +3,14 @@ param([string]$Version)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $modRoot = Join-Path $projectRoot 'bin/AnimatedMojang'
-$tooth = Get-Content -LiteralPath (Join-Path $projectRoot 'tooth.json') -Raw | ConvertFrom-Json
-if (-not $Version) { $Version = $tooth.version }
-if ($Version -notmatch '^\d+\.\d+\.\d+(?:-mc\d+\.\d+)?$' -or $Version -ne $tooth.version) {
-    throw 'Package version must match tooth.json.'
+$lipToml = Get-Content -LiteralPath (Join-Path $projectRoot 'lip.toml') -Raw
+if ($lipToml -notmatch '(?m)^version\s*=\s*"([^"]+)"') {
+    throw 'Could not find version in lip.toml.'
+}
+$lipVersion = $Matches[1]
+if (-not $Version) { $Version = $lipVersion }
+if ($Version -notmatch '^\d+\.\d+\.\d+(?:-mc\d+\.\d+)?$' -or $Version -ne $lipVersion) {
+    throw 'Package version must match lip.toml.'
 }
 $manifest = Get-Content -LiteralPath (Join-Path $modRoot 'manifest.json') -Raw | ConvertFrom-Json
 if ($manifest.version -ne $Version -or $manifest.platform -ne 'client' -or $manifest.entry -ne 'AnimatedMojang.dll') {
@@ -31,6 +35,7 @@ foreach ($file in $files) {
     if (-not (Test-Path -LiteralPath (Join-Path $modRoot $file) -PathType Leaf)) { throw "Missing runtime file: $file" }
 }
 
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $output = Join-Path $projectRoot "bin/Animated-Mojang-$Version-client-windows-x64.zip"
 $temporary = Join-Path $projectRoot ('bin/package-' + [guid]::NewGuid().ToString('N') + '.zip')

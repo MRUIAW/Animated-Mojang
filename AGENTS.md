@@ -4,7 +4,7 @@ This file is for agents and developers maintaining this repository. Read README.
 
 ## Supported baseline and sources
 
-- Minecraft Bedrock for Windows **1.26.60.05**, LeviLamina **26.60.7 client SDK**, Windows x64, C++23 with clang-cl and the MD runtime. Pin the SDK to `26.60.7` in xmake.lua. Use `>=26.60.7 <26.61.0` for the client package dependency in tooth.json.
+- Minecraft Bedrock for Windows **1.26.60.05**, LeviLamina **26.60.7 client SDK**, Windows x64, C++23 with clang-cl and the MD runtime. Pin the SDK to `26.60.7` in xmake.lua. Use `>=26.60.8 <26.61.0` for the bare `github.com/LiteLDev/LeviLamina` client dependency in lip.toml.
 - Mod version **1.1.0** and configuration schema version **5** are independent.
 - [LeviLamina documentation](https://lamina.levimc.org/zh/) and [API reference](https://lamina.levimc.org/api/).
 - [Hook guide](https://lamina.levimc.org/zh/developer_guides/how_to_guides/hook_guide/) and [C++ style guide](https://lamina.levimc.org/zh/maintainer_guides/cpp_style_guide/).
@@ -31,7 +31,7 @@ Online API documentation can describe newer releases. For ABI-sensitive changes,
 | tools/build-cave*.mjs, cave-*.mjs, read-cave-nbt.mjs | Source cave conversion, atlas, geometry, lighting and emitters |
 | tests/ | CPU/geometry, lifecycle, camera, particles, occlusion, source UV/rail checks |
 | tools/package-release.ps1 | Explicit release file list and archive-content hash validation |
-| xmake.lua, tooth.json, .github/workflows/ | SDK pin, build targets, lip client metadata and release automation |
+| xmake.lua, lip.toml, .github/workflows/ | SDK pin, build targets, lip client metadata and release automation |
 
 ## Programming rules
 
@@ -109,14 +109,14 @@ For rendering or hook changes, build the client DLL and verify the changed behav
 
 Publish only when the user requests a release. Do not request repeat permission when it is already authorized.
 
-1. Use the version specified by the maintainer, currently `1.1.0`. Keep the GitHub release non-prerelease unless the user requests an experimental release. Pin the complete version in lip install examples. Update xmake.lua modVersion, tooth.json version, and the MyMod.cpp version message together, and update both READMEs. Do not change the config schema solely because the release version changes.
+1. Use the version specified by the maintainer, currently `1.1.0`. Keep the GitHub release non-prerelease unless the user requests an experimental release. Pin the complete version in lip install examples. Update xmake.lua modVersion, lip.toml version, and the MyMod.cpp version message together, and update both READMEs. Do not change the config schema solely because the release version changes.
 2. Add a dated Keep a Changelog entry, with Added/Changed/Fixed/Removed sections as applicable. Keep known limitations accurate.
-3. Keep tooth.json format_version=3 and its official format_uuid. This mod has only the client / win-x64 variant, the github.com/LiteLDev/LeviLamina#client dependency, and AnimatedMojang/ -> mods/AnimatedMojang/ placement. Preserve the config file.
+3. Keep lip.toml format=4 with the default `""` variant (`side = "client"`, `platform = "win-x64"`), the bare `github.com/LiteLDev/LeviLamina` dependency (`>=26.60.8 <26.61.0`), and `AnimatedMojang/` -> `mods/AnimatedMojang/` placement. Preserve the config file.
 4. Validate metadata, build and run the relevant regressions. Package using tools/package-release.ps1; it checks archive contents against the explicit file list.
 5. Commit the source, derived assets and documentation; push the intended branch without force. Never commit credentials, local capture data, package caches or bin/build outputs.
-6. Create an annotated tag matching tooth.json with a `v` prefix on the release commit and push it. Do not move a published release tag to a different commit.
+6. Create an annotated tag matching lip.toml `version` with a `v` prefix (e.g. `v1.1.0`) on the release commit and push it (or create the tag on GitHub Release publish). Do not move a published release tag to a different commit.
 7. Create the GitHub Release for that tag. The published-release workflow checks the version, builds/tests/packages and writes the version's Changelog notes to the release. It preserves already uploaded assets with the same filename.
-8. Ensure the release includes **Animated-Mojang-client-windows-x64.zip**, the filename referenced by tooth.json. An additional versioned ZIP is a convenience copy. Upload verified files before marking a draft public when using manual publication.
-9. Verify the published tag's tooth.json, asset download and package hash. The package is distributed through Git/lip; Bedrinth/LeviLauncher catalog indexing is external and may lag. Do not claim listing success without checking it.
+8. Ensure the release includes **Animated-Mojang-client-windows-x64.zip**, the filename referenced by lip.toml. An additional versioned ZIP is a convenience copy. Upload verified files before marking a draft public when using manual publication.
+9. Verify the published tag's lip.toml (`lip pkg view github.com/MRUIAW/Animated-Mojang`), asset download and package hash. The package is distributed through Git/lip; LeviMC Mods / LeviLauncher catalog indexing is external and may lag. Do not claim listing success without checking it.
 
 There is no need to publish development notes as release assets. Keep a single maintenance guide and the two foundational analyses, not per-version investigation reports.
