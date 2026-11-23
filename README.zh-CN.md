@@ -12,7 +12,7 @@
 | Windows Minecraft 基岩版 | 1.26.60.05 |
 | LeviLamina 客户端安装依赖 | `>=26.60.8 <26.61.0` |
 | 平台 | Windows x64 |
-| 模组 | 1.1.0 |
+| 模组 | 1.1.0-mc26.60 |
 
 此构建面向上表所列的客户端版本。
 
@@ -34,7 +34,7 @@
 在由 LeviLamina/lip 管理的游戏安装目录执行：
 
 ```powershell
-lip install github.com/MRUIAW/Animated-Mojang@1.1.0
+lip install github.com/MRUIAW/Animated-Mojang@1.1.0-mc26.60
 ```
 
 客户端依赖已写入 [lip.toml](https://github.com/MRUIAW/Animated-Mojang/blob/main/lip.toml)。模组被收录后，也可通过 LeviLauncher 安装。

@@ -18,7 +18,7 @@ end
 
 target("AnimatedMojang")
     add_rules("@levibuildscript/linkrule")
-    add_rules("@levibuildscript/modpacker", {modName = "AnimatedMojang", modVersion = "1.1.0", modPlatform = "client"})
+    add_rules("@levibuildscript/modpacker", {modName = "AnimatedMojang", modVersion = "1.1.0-mc26.60", modPlatform = "client"})
     if is_plat("windows") then
         add_defines("NOMINMAX", "UNICODE")
         set_exceptions("none") -- To avoid conflicts with /EHa.
